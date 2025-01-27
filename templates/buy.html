@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fid_Dawg Hotspot Login 🌐</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="dropdown">
+            <button>Help</button>
+            <div class="dropdown-content">
+                For Assistance,Contact Us:
+                <p>Fid: <a href="tel:+254746919779">+254746919779</a></p>
+                <p>June: <a href="tel:+254769556367">+254769556367</a></p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <h1>Buy a Voucher</h1>
+        <p>Select a voucher plan below:</p>
+
+        <!-- Voucher Buttons -->
+        <div class="voucher-options">
+            <button onclick="buyVoucher('1', '1 GB', '1 Hour')">1 Ksh - 1 GB for 1 Hour</button>
+            <button onclick="buyVoucher('35', '3 GB', '3 Hours')">35 Ksh - 3 GB for 3 Hours</button>
+            <button onclick="buyVoucher('45', '6 GB', '12 Hours')">45 Ksh - 6 GB for 12 Hours</button>
+            <button onclick="buyVoucher('60', '10 GB', '24 Hours')">60 Ksh - 10 GB for 24 Hours</button>
+            <button onclick="buyVoucher('1000', 'Unlimited', '1 Month')">1000 Ksh - Unlimited for 1 Month</button>
+        </div>
+
+        <!-- Phone Number Input -->
+        <div id="phone-input-section" style="display:none;">
+            <h2>Enter Your Phone Number</h2>
+            <form id="phoneForm" onsubmit="submitPhoneNumber(event)">
+                <label for="phoneNumber">Phone Number:</label>
+                <input type="tel" id="phoneNumber" placeholder="Enter your phone number" required
+                       pattern="(\+254)?[0-9]{9}"
+                       value="+254"
+                       maxlength="13"
+                       minlength="13">
+                <input type="hidden" id="voucherAmount">
+                <input type="hidden" id="voucherData">
+                <input type="hidden" id="voucherDuration">
+                <button type="submit">Buy Voucher</button>
+            </form>
+        </div>
+
+        <hr>
+
+        <!-- Login Form -->
+        <h1>Login to Fid_Dawg Wi-Fi</h1>
+        <form id="loginForm">
+            <label for="voucher_code">Enter Voucher Code:</label>
+            <input type="text" id="voucher_code" name="voucher_code" placeholder="Voucher Code" required>
+            <button type="submit" id="loginButton" disabled>Login</button>
+        </form>
+    </div>
+
+    <script>
+        // Show phone input section when a voucher is selected
+        function buyVoucher(amount, data, duration) {
+            document.getElementById('phone-input-section').style.display = 'block';
+            document.getElementById('voucherAmount').value = amount;
+            document.getElementById('voucherData').value = data;
+            document.getElementById('voucherDuration').value = duration;
+        }
+
+        // Submit phone number and voucher info to the backend
+        function submitPhoneNumber(event) {
+            event.preventDefault();
+
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            const voucherAmount = document.getElementById('voucherAmount').value;
+            const voucherData = document.getElementById('voucherData').value;
+            const voucherDuration = document.getElementById('voucherDuration').value;
+
+            const submitButton = event.target.querySelector('button[type="submit"]');
+            submitButton.disabled = true; // Disable button to prevent multiple submissions
+
+            // Show a loading spinner or message to the user
+            alert('Please wait while we process your request.');
+
+            fetch('/buy-voucher', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    phone_number: phoneNumber,
+                    amount: voucherAmount,
+                    data: voucherData,
+                    duration: voucherDuration,
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.voucher_code) {
+                    alert('Voucher sent successfully. Enter PIN on your phone to complete payment.');
+                    document.getElementById('voucher_code').value = data.voucher_code;
+                    document.getElementById('loginButton').disabled = false; // Enable login button
+                } else {
+                    alert('Failed to purchase voucher. Please try again.');
+                }
+                document.getElementById('phone-input-section').style.display = 'none';
+                document.getElementById('phoneForm').reset(); // Clear the form
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to purchase voucher. Please try again.');
+            })
+            .finally(() => {
+                submitButton.disabled = false; // Re-enable button after submission
+            });
+        }
+
+        // Modify the form submission to send data as JSON
+        document.getElementById('loginForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const voucherCode = document.getElementById('voucher_code').value;
+
+            // Send the voucher code as JSON to the server
+            fetch('/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json', // Set the content type to JSON
+                },
+                body: JSON.stringify({
+                    transaction_reference: voucherCode, // Send the voucher code in the request body
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/dashboard'; // Redirect to the dashboard if the login is successful
+                } else {
+                    alert('Invalid voucher code. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        });
+    </script>
+
+</body>
+<footer>
+    <p><span>
+        © 2025 Fid_Dawg,&nbsp;Inc.
+      </span></p>
+</footer>
+</html>

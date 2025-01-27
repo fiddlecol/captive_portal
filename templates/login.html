@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Login</title>
+     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <h1 class="title">Enter your Voucher Code</h1>
+        <form class="form" method="POST" action="/login">
+
+            <label for="voucher" class="form-label">Voucher Code:</label>
+            <input type="text" id="voucher" name="voucher" class="form-input" required>
+            <button type="submit" class="form-button">Login</button>
+    </form>
+        <p class="paragraph">Don't have a voucher? <a href="/buy" class="link">Buy one here</a></p>
+    </div>
+
+</body>
+<footer>
+    <p><span>
+        © 2025 Fid_Dawg,&nbsp;Inc.
+      </span></p>
+</footer>
+</html>
