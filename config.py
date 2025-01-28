@@ -1,11 +1,18 @@
 # config.py
 import os
 
+
+class Config:
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "SQLALCHEMY_DATABASE_URI",
+        "sqlite:///instance/application.db"  # Default path for SQLite
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "your_default_key")
+
 MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "default_consumer_key")
 MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "default_consumer_secret")
-MPESA_AUTH_URL = os.getenv(
-    "MPESA_AUTH_URL",
-    "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+MPESA_AUTH_URL = os.getenv( "MPESA_AUTH_URL", "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
 )
 MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379")  # Replace `123456` with your shortcode
 MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "default_passkey")  # Replace with your passkey
