@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from models import PaymentTransaction
 from utilities import  current_app
 
 mpesa_bp = Blueprint("mpesa_bp", __name__)
@@ -19,8 +18,8 @@ def buy_voucher():
     # Mock response (success and voucher creation simulation)
     if phone_number and amount and user_type and duration:
         # Assume you generate a voucher code like this
-        voucher_code = f"FID-{phone_number[-4:]}-{amount}"  # Mock voucher generation
-        return jsonify({'success': True, 'voucher_code': voucher_code}), 200
+        transaction_reference = f"FID-{phone_number[-4:]}-{amount}"  # Mock voucher generation
+        return jsonify({'success': True, 'transaction_reference': transaction_reference}), 200
     else:
         return jsonify({'success': False, 'error': 'Invalid data'}), 400
 
@@ -34,14 +33,14 @@ def validate_voucher():
         print("Data received for validation:", data)
 
         # Extract required fields
-        voucher_code = data.get('transaction_reference')
+        transaction_reference = data.get('')
 
         # Check if voucher_code is present
-        if not voucher_code:
+        if not transaction_reference:
             return jsonify({"success": False, "error": "Missing voucher code"}), 400
 
         # Simulate validation logic
-        if voucher_code == "VALID_CODE":
+        if transaction_reference == "VALID_CODE":
             return jsonify({"success": True, "message": "Voucher code validated"}), 200
         else:
             return jsonify({"success": False, "error": "Invalid voucher code"}), 400

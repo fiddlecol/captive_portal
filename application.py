@@ -2,7 +2,6 @@ from flask import Flask, render_template
 from extensions import db
 from routes import init_routes
 from models import db
-from routes.mpesa import mpesa_bp
 
 
 
