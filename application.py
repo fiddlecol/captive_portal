@@ -28,14 +28,14 @@ def home():
     return render_template("login.html")
 
 
-@app.route("/success")
-def success():
-    return render_template("success.html")
-
-
 @app.route("/buy")
 def buy():
     return render_template("buy.html")
+
+
+@app.route("/success")
+def success():
+    return render_template("success.html")
 
 
 if __name__ == "__main__":

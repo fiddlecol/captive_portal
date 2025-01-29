@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fid_Dawg Hotspot Login 🌐</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+       <link rel="icon" type="image/x-icon" href="/static/wifi-signal.png">
 </head>
 <body>
     <header>
@@ -144,7 +145,7 @@
                            console.log("Validation Response:", data);
                            if (data.success) {
                                alert("Login successful!");
-                               window.location.href = '/success.html'; // Redirect to the dashboard if the login is successful
+                               window.location.href = '/success'; // Redirect to the dashboard if the login is successful
                            } else {
                                alert('Invalid voucher code. Please try again.');
                            }
