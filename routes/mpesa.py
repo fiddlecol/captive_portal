@@ -33,21 +33,22 @@ def validate_voucher():
         print("Data received for validation:", data)
 
         # Extract required fields
-        transaction_reference = data.get('')
+        transaction_reference = data.get('transaction_reference')
 
-        # Check if voucher_code is present
+        # Check if transaction_reference is present
         if not transaction_reference:
             return jsonify({"success": False, "error": "Missing voucher code"}), 400
 
-        # Simulate validation logic
-        if transaction_reference == "VALID_CODE":
+            # Example validation logic
+            # Replace this with real validation (e.g., database query)
+        if transaction_reference.startswith("FID-"):  # Check format
             return jsonify({"success": True, "message": "Voucher code validated"}), 200
         else:
             return jsonify({"success": False, "error": "Invalid voucher code"}), 400
 
     except Exception as e:
-        print("Error in validate_voucher:", str(e))
-        return jsonify({"success": False, "error": str(e)}), 500
+        current_app.logger.error(f"Exception in validate_voucher: {str(e)}")
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
 @mpesa_bp.route('/mpesa-callback', methods=['POST'])
