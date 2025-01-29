@@ -3,52 +3,53 @@ from extensions import db
 from models import PaymentTransaction
 from utilities import  current_app
 
-mpesa_bp = Blueprint("mpesa", __name__)
+mpesa_bp = Blueprint("mpesa_bp", __name__)
 
 
 @mpesa_bp.route('/buy-voucher', methods=['POST'])
 def buy_voucher():
-    phone_number = request.json['phone_number']
-    amount = request.json['amount']
+    data = request.get_json()  # Get JSON data from the frontend
+    phone_number = data.get('phone_number')
+    amount = data.get('amount')
+    user_type = data.get('user_type')
+    duration = data.get('duration')
 
-    # Simulated MPESA API response
-    response = {
-        "MerchantRequestID": "b54f-471d-93d9-f7f3bf3f7c0e2078704",
-        "CheckoutRequestID": "ws_CO_28012025210330027746919779",
-        "ResponseCode": "0",
-        "ResponseDescription": "Success. Request accepted for processing",
-        "CustomerMessage": "Success. Request accepted for processing"
-    }
+    # Perform actions like creating a voucher and initiating payment here
+    # (This would typically involve backend logic such as calls to a payment API like Mpesa)
+    # Mock response (success and voucher creation simulation)
+    if phone_number and amount and user_type and duration:
+        # Assume you generate a voucher code like this
+        voucher_code = f"FID-{phone_number[-4:]}-{amount}"  # Mock voucher generation
+        return jsonify({'success': True, 'voucher_code': voucher_code}), 200
+    else:
+        return jsonify({'success': False, 'error': 'Invalid data'}), 400
 
-    if response['ResponseCode'] == '0':  # Successful response
-        checkout_request_id = response['CheckoutRequestID']
 
-        # Check if this checkout_request_id already exists in the database
-        existing_transaction = PaymentTransaction.query.filter_by(
-            checkout_request_id=checkout_request_id
-        ).first()
+# Route to handle voucher validation/login
+@mpesa_bp.route('/validate', methods=['POST'])
+def validate_voucher():
+    try:
+        # Parse the incoming JSON request
+        data = request.json
+        print("Data received for validation:", data)
 
-        if existing_transaction:
-            # Optional: Return a response to indicate the duplicate
-            return jsonify({
-                "error": "Duplicate transaction",
-                "message": f"A transaction with checkout_request_id '{checkout_request_id}' already exists."
-            }), 400
+        # Extract required fields
+        voucher_code = data.get('transaction_reference')
 
-        # Otherwise, create and save the new transaction
-        new_transaction = PaymentTransaction(
-            phone_number=phone_number,
-            amount=amount,
-            checkout_request_id=checkout_request_id,
-            status="PENDING"  # Default to PENDING
-        )
+        # Check if voucher_code is present
+        if not voucher_code:
+            return jsonify({"success": False, "error": "Missing voucher code"}), 400
 
-        db.session.add(new_transaction)
-        db.session.commit()
+        # Simulate validation logic
+        if voucher_code == "VALID_CODE":
+            return jsonify({"success": True, "message": "Voucher code validated"}), 200
+        else:
+            return jsonify({"success": False, "error": "Invalid voucher code"}), 400
 
-        return jsonify({"message": "Transaction created successfully"}), 200
+    except Exception as e:
+        print("Error in validate_voucher:", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
 
-    return jsonify({"error": "STK Push failed"}), 400
 
 @mpesa_bp.route('/mpesa-callback', methods=['POST'])
 def mpesa_callback():

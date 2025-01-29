@@ -37,13 +37,17 @@
             <form id="phoneForm" onsubmit="submitPhoneNumber(event)">
                 <label for="phoneNumber">Phone Number:</label>
                 <input type="tel" id="phoneNumber" placeholder="Enter your phone number" required
-                       pattern="(\+254)?[0-9]{9}"
+                       pattern="^\+254(7|1)[0-9]{8}$"
                        value="+254"
                        maxlength="13"
+                       title="Phone number must be in format +254XXXXXXXXX"
                        minlength="13">
-                <input type="hidden" id="voucherAmount">
-                <input type="hidden" id="voucherData">
-                <input type="hidden" id="voucherDuration">
+                <input type="hidden" id="voucherAmount" name="amount">
+
+                <input type="hidden" id="voucherData" name="data_plan">
+
+                <input type="hidden" id="voucherDuration" name="duration">
+                <input type="hidden" id="userType" name="user_type" value="guest">
                 <button type="submit">Buy Voucher</button>
             </form>
         </div>
@@ -69,7 +73,7 @@
         }
 
         // Submit phone number and voucher info to the backend
-        function submitPhoneNumber(event) {
+        async function submitPhoneNumber(event) {
             event.preventDefault();
 
             const phoneNumber = document.getElementById('phoneNumber').value;
@@ -83,16 +87,17 @@
             // Show a loading spinner or message to the user
             alert('Please wait while we process your request.');
 
-            fetch('/buy-voucher', {
+            fetch('/mpesa/buy-voucher', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     phone_number: phoneNumber,
-                    amount: voucherAmount,
-                    data: voucherData,
+                    amount: parseInt(voucherAmount),
+                    data_plan: voucherData,
                     duration: voucherDuration,
+                    user_type: 'guest',
                 }),
             })
             .then(response => response.json())
@@ -123,7 +128,7 @@
             const voucherCode = document.getElementById('voucher_code').value;
 
             // Send the voucher code as JSON to the server
-            fetch('/validate', {
+            fetch('/mpesa/validate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json', // Set the content type to JSON
