@@ -35,7 +35,7 @@
         <!-- Phone Number Input -->
         <div id="phone-input-section" style="display:none;">
             <h2>Enter Your Phone Number</h2>
-            <form id="phoneForm" onsubmit="submitPhoneNumber(event)">
+             <form id="phoneForm" onsubmit="submitPhoneNumber(event)">
                 <label for="phoneNumber">Phone Number:</label>
                 <input type="tel" id="phoneNumber" placeholder="Enter your phone number" required
                        pattern="^\+254(7|1)[0-9]{8}$"
@@ -122,59 +122,72 @@
      * Handle phone number submission for voucher purchase
      */
     async function submitPhoneNumber(event) {
-    event.preventDefault();
+        console.log("submitPhoneNumber triggered");
+        event.preventDefault();
+        console.log("submitPhoneNumber event:", event);
 
+          // Check if the request has already been sent
+    if (window.requestSent) {
+        console.log("Request already sent. Skipping...");
+        return;
+    }
+
+    // Get the input values
     const phoneNumberInput = document.getElementById("phoneNumber").value;
     const voucherAmount = document.getElementById("voucherAmount").value;
     const voucherData = document.getElementById("voucherData").value;
     const voucherDuration = document.getElementById("voucherDuration").value;
     const userType = document.getElementById("userType").value;
 
+    // Sanitize the phone number input
     const phoneNumber = sanitizeInput(phoneNumberInput);
 
+    // Validate the phone number format
     if (!phoneNumber.match(/^\+254(7|1)[0-9]{8}$/)) {
         alert("Please enter a valid phone number in the format +254XXXXXXXXX.");
         return;
     }
 
+    // Create the payload
     const payload = {
-        phone_number: phoneNumber.replace("+", ""), // Remove "+" for backend compatibility
+        phone_number: phoneNumber.replace("+", ""),
         amount: parseInt(voucherAmount, 10),
         voucher_data: sanitizeInput(voucherData),
         voucher_duration: sanitizeInput(voucherDuration),
         user_type: sanitizeInput(userType),
     };
 
-    console.log("Request Payload:", payload);
 
-    // Check if the request has already been sent
-    if (window.requestSent) {
-        console.log("Request already sent. Skipping...");
-        return;
-    }
 
-    window.requestSent = true; // Flag the request as sent
+    // Disable the submit button to prevent multiple submissions
+    const submitButton = document.querySelector("button[type='submit']");
+    if (submitButton) submitButton.disabled = true;
+
+    // Flag the request as sent
+    window.requestSent = true;
+
+    console.log("Request Payload:", payload); // Log payload for debugging
 
     try {
-        // Add a log to ensure the function is only called once
-        console.log("Sending request...");
-
+        // Send the request
         const result = await postRequest("/mpesa/buy-voucher", payload);
 
+        // Show success message
         alert("Voucher purchase successful! " + result.message);
     } catch (error) {
+        // Handle errors
         alert("Error: " + error.message);
     } finally {
-        window.requestSent = false; // Reset flag after the request is complete
+        // Reset the request flag and re-enable the button after request completion
+        window.requestSent = false;
+        if (submitButton) submitButton.disabled = false;
     }
 }
 
+
+
 // Ensuring only one submit listener is added
-        const phoneForm = document.getElementById('phoneForm');
-    if (phoneForm) {
-    phoneForm.removeEventListener('submit', submitPhoneNumber);
-    phoneForm.addEventListener('submit', submitPhoneNumber);
-}
+
 
     /**
      * Handle voucher login
@@ -203,7 +216,7 @@
     // Attach event listeners directly to the forms
     const loginForm = document.getElementById('loginForm');
 
-    if (phoneForm) phoneForm.addEventListener('submit', submitPhoneNumber);
+
     if (loginForm) loginForm.addEventListener('submit', submitVoucherCode);
 </script>
 

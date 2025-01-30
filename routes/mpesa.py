@@ -52,23 +52,28 @@ else:
 @mpesa_bp.route('/buy-voucher', methods=['POST'])
 def buy_voucher():
     try:
-        # Ensure request contains JSON data
+        # Log incoming JSON data
         data = request.get_json()
         current_app.logger.info(f"Raw request payload: {data}")
+
         if not data:
             return jsonify({"success": False, "error": "Invalid JSON data."}), 400
 
         # Cast voucher amount to integer
         try:
             amount_str = data.get('amount', '')
-            amount = int(amount_str)
+            amount = int(amount_str)  # Possible source of error
         except ValueError:
             return jsonify({"success": False, "error": "Voucher amount must be a number."}), 400
+
         current_app.logger.info(f"Voucher amount: {amount}")
 
-        duration = data.get('voucher_duration', '')
+        duration = data.get('voucher_duration', '')  # Another potential source of error
+        # Ensure duration is provided
+        if not duration:
+            return jsonify({"success": False, "error": "Duration is required."}), 400
 
-        # Define allowed voucher amounts
+        # Define allowed vouchers
         allowed_vouchers = {
             1: "1 GB for 1 Hour",
             35: "3 GB for 3 Hours",
@@ -79,20 +84,24 @@ def buy_voucher():
 
         # Validate the amount
         if amount not in allowed_vouchers:
-            raise ValueError(f"Invalid voucher amount: {amount}. Allowed values: {list(allowed_vouchers.keys())}")
+            raise ValueError(
+                f"Invalid voucher amount: {amount}. "
+                f"Allowed values: {list(allowed_vouchers.keys())}"
+            )
 
-        # Validate duration (assuming it must not be empty)
-        if not duration:
-            return jsonify({"success": False, "error": "Duration is required."}), 400
+        # Log successful validation
+        current_app.logger.info("Amount and duration validated successfully")
 
-        # (Placeholder) Process the request - M-Pesa transaction logic goes here
-
+        # (Placeholder) Process the request - M-Pesa transaction logic would go here
         return jsonify({"success": True, "message": "Voucher purchase request received."}), 200
 
     except ValueError as e:
+        current_app.logger.error(f"ValueError: {e}")
         return jsonify({"success": False, "error": f"Invalid input: {str(e)}"}), 400
     except Exception as e:
+        current_app.logger.error(f"Unexpected error: {e}")
         return jsonify({"success": False, "error": f"Unexpected error: {str(e)}"}), 500
+
 
 
 def sanitize_phone_number(phone_number):
@@ -117,8 +126,6 @@ def sanitize_phone_number(phone_number):
 def initiate_stk_push(access_token, phone_number, amount):
     try:
         sanitized_phone = sanitize_phone_number(phone_number)  # Sanitize phone number
-
-
 
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
 
