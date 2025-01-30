@@ -1,53 +1,6 @@
-import requests
 from flask import current_app
 from datetime import datetime
 import base64
-
-
-def initiate_mpesa_payment(phone_number, amount):
-    access_token = current_app.config.get("MPESA_ACCESS_TOKEN", "YOUR_ACCESS_TOKEN_PLACEHOLDER")
-
-    # Prepare credentials
-    business_short_code = "YOUR_SHORTCODE"  # Paybill or Till number
-    passkey = "YOUR_PASSKEY"
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    password = base64.b64encode(f"{business_short_code}{passkey}{timestamp}".encode()).decode()
-
-    # STK push endpoint
-    api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-
-    # Payload
-    payload = {
-        "BusinessShortCode": business_short_code,
-        "Password": password,
-        "Timestamp": timestamp,
-        "TransactionType": "CustomerPayBillOnline",
-        "Amount": amount,
-        "PartyA": phone_number,
-        "PartyB": business_short_code,
-        "PhoneNumber": phone_number,
-        "CallBackURL": "https://yourdomain.com/mpesa-callback",
-        "AccountReference": "YOUR_REFERENCE",
-        "TransactionDesc": "Payment of goods"
-    }
-
-    # Headers
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-
-    # Perform the STK push
-    response = requests.post(api_url, json=payload, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        # Handle errors
-        return {
-            "error": "Failed to initiate STK push",
-            "details": response.json()
-        }
 
 
 def get_timestamp():
@@ -63,10 +16,9 @@ def generate_password():
 
     Combines BusinessShortCode, Passkey, and Timestamp, then encodes it using Base64.
     """
-    import base64
 
-    business_short_code = current_app.config.get("MPESA_BUSINESS_SHORT_CODE")
-    passkey = current_app.config.get("MPESA_PASSKEY")
+    business_short_code = current_app.config.get("174379")
+    passkey = current_app.config.get("bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919")
     timestamp = get_timestamp()
 
     # Combine and encode

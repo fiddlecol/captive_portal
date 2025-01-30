@@ -1,17 +1,14 @@
-import base64
 import logging
 from datetime import datetime
-
-import requests
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-
 from config import *
+
 
 # Initialize Flask App and Database
 app = Flask(__name__)
 app.debug = True
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/application.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -73,7 +70,7 @@ import requests
 def get_mpesa_access_token():
     consumer_key = "YOUR_CONSUMER_KEY"
     consumer_secret = "YOUR_CONSUMER_SECRET"
-    api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"  # Sandbox URL
+    api_url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"  # Sandbox URL
 
     try:
         # Form the authorization header
@@ -81,7 +78,7 @@ def get_mpesa_access_token():
         headers = {"Authorization": f"Basic {basic_auth}"}
 
         # Make the API call and add logging
-        response = requests.get(api_URL, headers=headers, timeout=10)
+        response = requests.get(api_url, headers=headers, timeout=10)
         print(f"Status Code: {response.status_code}")  # Log status code
         print(f"Response: {response.text}")  # Log full response from MPesa server
 
@@ -104,7 +101,7 @@ def get_mpesa_access_token():
 def generate_stk_password():
     """Generate MPesa STK Push password."""
     timestamp = get_current_timestamp()
-    raw_password = f"{MPESA_SHORTCODE}{MPESA_PASSKEY}{timestamp}"
+    raw_password = f"{SHORTCODE}{PASSKEY}{timestamp}"
     return base64.b64encode(raw_password.encode("utf-8")).decode("utf-8")
 
 
@@ -117,13 +114,13 @@ def initiate_stk_push(phone_number, amount, access_token):
     """Initiate MPesa STK Push for payment."""
     api_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
     payload = {
-        "BusinessShortCode": MPESA_SHORTCODE,
+        "BusinessShortCode": SHORTCODE,
         "Password": generate_stk_password(),
         "Timestamp": get_current_timestamp(),
         "TransactionType": "CustomerPayBillOnline",
         "Amount": amount,
         "PartyA": phone_number,
-        "PartyB": MPESA_SHORTCODE,
+        "PartyB": SHORTCODE,
         "PhoneNumber": phone_number,
         "CallBackURL": CALLBACK_URL,
         "AccountReference": "VoucherPurchase",

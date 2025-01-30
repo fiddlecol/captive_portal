@@ -1,13 +1,9 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+from extensions import db
 
 # Create the Flask application
 app = Flask(__name__)
 
-# Initialize extensions
-db = SQLAlchemy()  # Do not pass `app` here
-migrate = Migrate(app, db)  # Initialize Flask-Migrate with app and database
 
 class Voucher(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -24,14 +20,22 @@ class Client(db.Model):
     connected_at = db.Column(db.DateTime, default=db.func.now())
 
 
+
+
 class PaymentTransaction(db.Model):
+    __tablename__ = "payment_transactions"
+
     id = db.Column(db.Integer, primary_key=True)
-    phone_number = db.Column(db.String(15), nullable=False)
+    checkout_request_id = db.Column(db.String(50), unique=True, nullable=False)
+    phone_number = db.Column(db.String(12), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    checkout_request_id = db.Column(db.String(255), unique=True, nullable=True)
-    status = db.Column(db.String(20), default="PENDING", nullable=False)
-    receipt_number = db.Column(db.String(50), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="PENDING")
+    receipt_number = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f"<PaymentTransaction {self.checkout_request_id}>"
+
 
 # Trigger the table creation process
 if __name__ == "__main__":  # This ensures it doesn't run on model imports elsewhere

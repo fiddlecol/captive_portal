@@ -1,5 +1,25 @@
 # config.py
 import os
+from dotenv import load_dotenv
+from flask import current_app
+
+from routes.mpesa import get_access_token
+
+# Load environment variables from the .env file
+load_dotenv()
+
+
+# Read the variables
+CONSUMER_KEY = os.getenv("CONSUMER_KEY")
+CONSUMER_SECRET = os.getenv("CONSUMER_SECRET")
+PASSKEY = os.getenv("PASSKEY")
+SHORTCODE = os.getenv("SHORTCODE")
+CALLBACK_URL = os.getenv("CALLBACK_URL")
+AUTH_URL = os.getenv( "AUTH_URL", "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+)
+
+
+current_app.config["ACCESS_TOKEN"] = get_access_token()
 
 
 class Config:
@@ -8,12 +28,4 @@ class Config:
         "sqlite:///instance/application.db"  # Default path for SQLite
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "your_default_key")
-
-MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "default_consumer_key")
-MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "default_consumer_secret")
-MPESA_AUTH_URL = os.getenv( "MPESA_AUTH_URL", "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
-)
-MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379")  # Replace `123456` with your shortcode
-MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "default_passkey")  # Replace with your passkey
-MPESA_CALLBACK_URL='https://f7a6-2c0f-fe38-2326-38ac-4904-1811-35f5-11e1.ngrok-free.app/mpesa_callback'
+    CONSUMER_KEY = os.getenv("CONSUMER_KEY", "your_default_key")

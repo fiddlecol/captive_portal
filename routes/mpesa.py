@@ -1,27 +1,164 @@
+import requests
 from flask import Blueprint, request, jsonify
 from extensions import db
-from utilities import  current_app
+from utilities import current_app, datetime, base64, generate_password
+from dotenv import load_dotenv
+import re
+
+# Load environment variables from the .env file
+load_dotenv()
 
 mpesa_bp = Blueprint("mpesa_bp", __name__)
 
 
+def get_access_token():
+    # Replace these with your actual credentials
+    consumer_key = "Wlh60goVFPOXmsmYmckZAi44rfuzFBRVUAl8QPgTNvZsOGra"
+    consumer_secret = "RtCL8XMDLCfQfGO0zjpUauCFnJO6dAikMlFUaOV2RMY7tfQP0AOXyr9GbOUC7VLn"
+    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+
+    try:
+        # Use Basic Authentication to send the credentials
+        response = requests.get(url, auth=(consumer_key, consumer_secret))
+
+        # Log the response for debugging
+        print(f"Request URL: {url}")
+        print(f"Response Status Code: {response.status_code}")
+        print(f"Response Text: {response.text}")
+
+        # Raise an exception for HTTP errors
+        response.raise_for_status()
+
+        # Parse and return the access token
+        data = response.json()
+        access_token = data.get("access_token")
+        if not access_token:
+            raise ValueError("No access token found in the response.")
+        return access_token
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching access token: {e}")
+        return None
+
+
+# Test the function
+token = get_access_token()
+if token:
+    print(f"\nAccess Token: {token}")
+else:
+    print("\nFailed to retrieve access token.")
+
+
 @mpesa_bp.route('/buy-voucher', methods=['POST'])
 def buy_voucher():
-    data = request.get_json()  # Get JSON data from the frontend
-    phone_number = data.get('phone_number')
-    amount = data.get('amount')
-    user_type = data.get('user_type')
-    duration = data.get('duration')
+    try:
+        # Ensure request contains JSON data
+        data = request.get_json()
+        current_app.logger.info(f"Raw request payload: {data}")
+        if not data:
+            return jsonify({"success": False, "error": "Invalid JSON data."}), 400
 
-    # Perform actions like creating a voucher and initiating payment here
-    # (This would typically involve backend logic such as calls to a payment API like Mpesa)
-    # Mock response (success and voucher creation simulation)
-    if phone_number and amount and user_type and duration:
-        # Assume you generate a voucher code like this
-        transaction_reference = f"FID-{phone_number[-4:]}-{amount}"  # Mock voucher generation
-        return jsonify({'success': True, 'transaction_reference': transaction_reference}), 200
-    else:
-        return jsonify({'success': False, 'error': 'Invalid data'}), 400
+        # Cast voucher amount to integer
+        try:
+            amount_str = data.get('amount', '')
+            amount = int(amount_str)
+        except ValueError:
+            return jsonify({"success": False, "error": "Voucher amount must be a number."}), 400
+        current_app.logger.info(f"Voucher amount: {amount}")
+
+        duration = data.get('voucher_duration', '')
+
+        # Define allowed voucher amounts
+        allowed_vouchers = {
+            1: "1 GB for 1 Hour",
+            35: "3 GB for 3 Hours",
+            45: "6 GB for 12 Hours",
+            60: "10 GB for 24 Hours",
+            1000: "Unlimited for 1 Month",
+        }
+
+        # Validate the amount
+        if amount not in allowed_vouchers:
+            raise ValueError(f"Invalid voucher amount: {amount}. Allowed values: {list(allowed_vouchers.keys())}")
+
+        # Validate duration (assuming it must not be empty)
+        if not duration:
+            return jsonify({"success": False, "error": "Duration is required."}), 400
+
+        # (Placeholder) Process the request - M-Pesa transaction logic goes here
+
+        return jsonify({"success": True, "message": "Voucher purchase request received."}), 200
+
+    except ValueError as e:
+        return jsonify({"success": False, "error": f"Invalid input: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Unexpected error: {str(e)}"}), 500
+
+
+def sanitize_phone_number(phone_number):
+    print("Raw Phone Input:", phone_number)  # Debugging line
+    if not phone_number:
+        raise ValueError("Phone number is required.")
+
+    phone_number = phone_number.strip().replace(" ", "").replace("-", "")
+
+    if phone_number.startswith("0"):
+        phone_number = "254" + phone_number[1:]
+    elif phone_number.startswith("+254"):
+        phone_number = phone_number[1:]
+
+    if not re.fullmatch(r"2547\d{8}", phone_number):
+        raise ValueError("Invalid phone number format. Must be in '2547XXXXXXXX' format.")
+
+    return phone_number
+
+
+
+def initiate_stk_push(access_token, phone_number, amount):
+    try:
+        sanitized_phone = sanitize_phone_number(phone_number)  # Sanitize phone number
+
+
+
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+
+        payload = {
+            "BusinessShortCode": "174379",  # Replace with your actual Business Short Code
+            "Password": base64.b64encode(f"174379{generate_password()}{timestamp}".encode()).decode(),
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": sanitized_phone,
+            "PartyB": "174379",  # Replace with your actual Business Short Code
+            "PhoneNumber": sanitized_phone,  # Customer phone number
+            "CallBackURL": "https://2a65-41-81-136-4.ngrok-free.app/mpesa_callback",
+            "AccountReference": "TestPayment",
+            "TransactionDesc": "Payment for Testing",
+        }
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+
+        # Send the STK Push request
+        response = requests.post(
+            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            json=payload,
+            headers=headers,
+        )
+
+        print(f"STK Push Response (Status {response.status_code}): {response.text}")
+        response.raise_for_status()  # Raise exception on HTTP errors
+
+        return response.json()
+
+    except ValueError as ve:
+        print(f"Validation Error: {ve}")
+        return {"success": False, "error": str(ve)}
+    except requests.RequestException as re:
+        print(f"Request Error: {re}")
+        return {"success": False, "error": "A network error occurred."}
 
 
 # Route to handle voucher validation/login
@@ -56,41 +193,48 @@ def mpesa_callback():
     callback_data = request.get_json()
     current_app.logger.info(f"MPesa Callback Data Received: {callback_data}")
 
-    # Extract information from callback payload
-    stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
-    result_code = stk_callback.get("ResultCode")
-    result_desc = stk_callback.get("ResultDesc")
-    checkout_request_id = stk_callback.get("CheckoutRequestID")
-    callback_metadata = stk_callback.get("CallbackMetadata", {}).get("Item", [])
-
-    current_app.logger.info(f"MPesa Callback ResultCode: {result_code}, ResultDesc: {result_desc}")
-
-    # Update the corresponding transaction in the database
-    from models import PaymentTransaction
-    transaction = PaymentTransaction.query.filter_by(checkout_request_id=checkout_request_id).first()
-
-    if not transaction:
-        current_app.logger.error(f"Transaction not found for CheckoutRequestID: {checkout_request_id}")
-        return jsonify({"ResultCode": 1, "ResultDesc": "Transaction not found"}), 404
-
     try:
-        # If the ResultCode is `0`, it means the payment was successful
-        if result_code == 0:
-            transaction.status = "SUCCESS"
+        # Extract relevant fields from callback
+        stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
+        result_code = stk_callback.get("ResultCode")
+        result_desc = stk_callback.get("ResultDesc")
+        checkout_request_id = stk_callback.get("CheckoutRequestID")
+        callback_metadata = stk_callback.get("CallbackMetadata", {}).get("Item", [])
 
-            # Optional: Extract useful metadata like MpesaReceiptNumber
+        # Log callback details
+        current_app.logger.info(
+            f"MPesa Callback: ResultCode={result_code}, ResultDesc={result_desc}, "
+            f"CheckoutRequestID={checkout_request_id}"
+        )
+
+        # Find transaction in the database
+        from models import PaymentTransaction
+        transaction = PaymentTransaction.query.filter_by(checkout_request_id=checkout_request_id).first()
+
+        if not transaction:
+            current_app.logger.error(
+                f"Transaction not found for CheckoutRequestID: {checkout_request_id}"
+            )
+            return jsonify({"ResultCode": 1, "ResultDesc": "Transaction not found"}), 404
+
+        # Update transaction details
+        if result_code == 0:  # Payment succeeded
+            transaction.status = "SUCCESS"
             for item in callback_metadata:
                 if item["Name"] == "MpesaReceiptNumber":
                     transaction.receipt_number = item["Value"]
-        else:
+        else:  # Payment failed
             transaction.status = "FAILED"
 
         db.session.commit()
-        current_app.logger.info(f"Updated transaction {transaction.id} status to {transaction.status}")
-    except Exception as e:
-        current_app.logger.error(f"Error updating transaction: {e}")
-        db.session.rollback()
-        return jsonify({"ResultCode": 1, "ResultDesc": "Error updating transaction"}), 500
+        current_app.logger.info(
+            f"Updated transaction {transaction.id} status to {transaction.status}"
+        )
 
-    # Respond to MPesa
-    return jsonify({"ResultCode": 0, "ResultDesc": "Callback processed successfully"})
+        # Respond to M-Pesa
+        return jsonify({"ResultCode": 0, "ResultDesc": "Callback processed successfully"}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Exception in mpesa_callback: {e}")
+        db.session.rollback()
+        return jsonify({"ResultCode": 1, "ResultDesc": "Error processing callback"}), 500
