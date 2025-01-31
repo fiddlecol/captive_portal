@@ -1,7 +1,6 @@
 # config.py
 import os
 from dotenv import load_dotenv
-from flask import current_app
 
 # Load environment variables from the .env file
 load_dotenv()

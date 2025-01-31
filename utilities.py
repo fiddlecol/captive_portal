@@ -1,4 +1,3 @@
-import requests
 from datetime import datetime
 import base64
 from dotenv import load_dotenv
@@ -22,18 +21,21 @@ def generate_password():
     password = base64.b64encode(data_to_encode.encode()).decode()
     return password
 
+import requests
+
+
 def get_access_token():
     # Replace these with your actual credentials
     consumer_key = "Wlh60goVFPOXmsmYmckZAi44rfuzFBRVUAl8QPgTNvZsOGra"
     consumer_secret = "RtCL8XMDLCfQfGO0zjpUauCFnJO6dAikMlFUaOV2RMY7tfQP0AOXyr9GbOUC7VLn"
-    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    oauth_url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
 
     try:
         # Use Basic Authentication to send the credentials
-        response = requests.get(url, auth=(consumer_key, consumer_secret))
+        response = requests.get(oauth_url, auth=(consumer_key, consumer_secret))
 
         # Log the response for debugging
-        print(f"Request URL: {url}")
+        print(f"Request URL: {oauth_url}")
         print(f"Response Status Code: {response.status_code}")
         print(f"Response Text: {response.text}")
 
@@ -50,6 +52,7 @@ def get_access_token():
     except requests.exceptions.RequestException as e:
         print(f"Error fetching access token: {e}")
         return None
+
 
 
 # Test the function

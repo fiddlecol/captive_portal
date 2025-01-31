@@ -67,16 +67,16 @@
     /**
      * Display voucher form and pre-fill its data
      */
-    function buyVoucher(amount, data, duration) {
-        console.log("Buying voucher with:", { amount, data, duration }); // Debug log
+    function buyVoucher(amount, voucher_data, voucher_duration) {
+        console.log("Buying voucher with:", { amount, voucher_data, voucher_duration });
 
         // Ensure phone input section is visible
         document.getElementById('phone-input-section').style.display = 'block';
 
         // Assign values explicitly
         document.getElementById('voucherAmount').value = amount.toString();
-        document.getElementById('voucherData').value = data;
-        document.getElementById('voucherDuration').value = duration;
+        document.getElementById('voucherData').value = voucher_data;
+        document.getElementById('voucherDuration').value = voucher_duration;
 
         // Debugging logs to verify correct values
         console.log("Set values:", {

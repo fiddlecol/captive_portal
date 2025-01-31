@@ -16,59 +16,44 @@ mpesa_bp = Blueprint("mpesa_bp", __name__)
 @mpesa_bp.route('/buy-voucher', methods=['POST'])
 def buy_voucher():
     try:
-        # Log incoming JSON data
+        # Get JSON payload
         data = request.get_json()
         current_app.logger.info(f"Raw request payload: {data}")
 
-        if not data:
-            return jsonify({"success": False, "error": "Invalid JSON data."}), 400
+        # Validation: Ensure request payload is dictionary
+        if not isinstance(data, dict):
+            return jsonify({"success": False, "error": "Invalid JSON structure."}), 400
 
-        # Cast voucher amount to integer
+        # Extract phone_number and voucher amount
+        phone_number = data.get('phone_number')
+        if not phone_number:
+            return jsonify({"success": False, "error": "Phone number is required."}), 400
+
+        current_app.logger.info(f"Phone number: {phone_number}")
+
+        # Validate 'amount'
+        amount_str = data.get('amount', None)
+        if not amount_str:
+            return jsonify({"success": False, "error": "Amount is missing."}), 400
+
         try:
-            amount_str = data.get('amount', '')
-            amount = int(amount_str)  # Possible source of error
+            amount = int(amount_str)  # Parse amount
+            current_app.logger.info(f"Amount: {amount}")
         except ValueError:
-            return jsonify({"success": False, "error": "Voucher amount must be a number."}), 400
+            return jsonify({"success": False, "error": "Amount must be a valid number."}), 400
 
-        current_app.logger.info(f"Voucher amount: {amount}")
-
-        duration = data.get('voucher_duration', '')  # Another potential source of error
-        # Ensure duration is provided
+        # Check additional voucher details
+        duration = data.get('voucher_duration', None)
         if not duration:
-            return jsonify({"success": False, "error": "Duration is required."}), 400
+            return jsonify({"success": False, "error": "Voucher duration is required."}), 400
 
-        # Define allowed vouchers
-        allowed_vouchers = {
-            1: "1 GB for 1 Hour",
-            35: "3 GB for 3 Hours",
-            45: "6 GB for 12 Hours",
-            60: "10 GB for 24 Hours",
-            1000: "Unlimited for 1 Month",
-        }
+        current_app.logger.info(f"Voucher duration: {duration}")
 
-        # Validate the amount
-        if amount not in allowed_vouchers:
-            raise ValueError(
-                f"Invalid voucher amount: {amount}. "
-                f"Allowed values: {list(allowed_vouchers.keys())}"
-            )
-        voucher_data = data.get('voucher_data', '')
-        if not voucher_data:
-            raise ValueError("Voucher data is missing.")
+        # Placeholder: Call Safaricom API and handle response
+        # Ensure proper JSON parsing and logging
+        safaricom_response = {"status": "success", "message": "Transaction processed"}
+        return jsonify({"success": True, "data": safaricom_response}), 200
 
-        allowed_data = ["1 GB", "3 GB", "6 GB", "10 GB", "Unlimited"]
-        if voucher_data not in allowed_data:
-            raise ValueError(f"Invalid voucher data. Allowed values: {', '.join(allowed_data)}")
-
-        # Log successful validation
-        current_app.logger.info("Amount, data and duration validated successfully")
-
-        # (Placeholder) Process the request - M-Pesa transaction logic would go here
-        return jsonify({"success": True, "message": "Voucher purchase request received."}), 200
-
-    except ValueError as e:
-        current_app.logger.error(f"ValueError: {e}")
-        return jsonify({"success": False, "error": f"Invalid input: {str(e)}"}), 400
     except Exception as e:
         current_app.logger.error(f"Unexpected error: {e}")
         return jsonify({"success": False, "error": f"Unexpected error: {str(e)}"}), 500
@@ -123,8 +108,10 @@ def initiate_stk_push(phone_number, amount):
         print("STK Push Payload:", payload)
 
         # Make the STK Push request
-
-        response = requests.post(LIPA_NA_MPESA_URL, headers=headers, json=payload)
+        data = request.get_json()
+        response = initiate_stk_push(data.get('phone_number'), int(data.get('amount', 0)))
+        print(response)
+        response = requests.post("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", headers=headers, json=payload)
 
         # Log the response status and body
         print("STK Push Response Status:", response.status_code)
@@ -135,14 +122,10 @@ def initiate_stk_push(phone_number, amount):
         else:
             return {"error": response.json()}
     except Exception as e:
+
         return {"error": str(e)}
 
-# Example usage: Initiating STK Push
-phone_number = "254708374149"  # Replace with the customer's phone number
-amount = 50  # Amount to charge
 
-response = initiate_stk_push(phone_number, amount)
-print(response)
 
 
 @mpesa_bp.route('/mpesa-callback', methods=['POST'])
