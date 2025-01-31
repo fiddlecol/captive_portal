@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
 from utilities import get_access_token, generate_password, password, timestamp
+from models import PaymentTransaction
+
 
 load_dotenv()
 
@@ -177,28 +179,10 @@ def mpesa_callback():
 
 # Route to handle voucher validation/login
 @mpesa_bp.route('/validate', methods=['POST'])
-def validate_voucher():
-    try:
-        # Parse the incoming JSON request
-        data = request.json
-        print("Data received for validation:", data)
-
-        # Extract required fields
-        transaction_reference = data.get('transaction_reference')
-
-        # Check if transaction_reference is present
-        if not transaction_reference:
-            return jsonify({"success": False, "error": "Missing voucher code"}), 400
-
-            # Example validation logic
-            # Replace this with real validation (e.g., database query)
-        if transaction_reference.startswith("FID-"):  # Check format
-            return jsonify({"success": True, "message": "Voucher code validated"}), 200
-        else:
-            return jsonify({"success": False, "error": "Invalid voucher code"}), 400
-
-    except Exception as e:
-        current_app.logger.error(f"Exception in validate_voucher: {str(e)}")
-        return jsonify({"success": False, "error": "An internal error occurred"}), 500
+def validate_voucher(receipt_number):
+    transaction = PaymentTransaction.query.filter_by(receipt_number=receipt_number, status="SUCCESS").first()
+    if transaction:
+        return True  # Voucher valid
+    return False  # Invalid voucher
 
 
