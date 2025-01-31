@@ -1,63 +1,13 @@
-import requests
-from flask import Blueprint, request, jsonify, current_app
-from config import LIPA_NA_MPESA_URL
-from extensions import db
-from utilities import get_access_token, generate_password
-from dotenv import load_dotenv
 import re
+import requests
+from dotenv import load_dotenv
+from flask import Blueprint, request, jsonify, current_app
+from extensions import db
+from utilities import get_access_token, generate_password, password, timestamp
 
-
-# Load environment variables from the .env file
 load_dotenv()
 
 mpesa_bp = Blueprint("mpesa_bp", __name__)
-
-
-@mpesa_bp.route('/buy-voucher', methods=['POST'])
-def buy_voucher():
-    try:
-        # Get JSON payload
-        data = request.get_json()
-        current_app.logger.info(f"Raw request payload: {data}")
-
-        # Validation: Ensure request payload is dictionary
-        if not isinstance(data, dict):
-            return jsonify({"success": False, "error": "Invalid JSON structure."}), 400
-
-        # Extract phone_number and voucher amount
-        phone_number = data.get('phone_number')
-        if not phone_number:
-            return jsonify({"success": False, "error": "Phone number is required."}), 400
-
-        current_app.logger.info(f"Phone number: {phone_number}")
-
-        # Validate 'amount'
-        amount_str = data.get('amount', None)
-        if not amount_str:
-            return jsonify({"success": False, "error": "Amount is missing."}), 400
-
-        try:
-            amount = int(amount_str)  # Parse amount
-            current_app.logger.info(f"Amount: {amount}")
-        except ValueError:
-            return jsonify({"success": False, "error": "Amount must be a valid number."}), 400
-
-        # Check additional voucher details
-        duration = data.get('voucher_duration', None)
-        if not duration:
-            return jsonify({"success": False, "error": "Voucher duration is required."}), 400
-
-        current_app.logger.info(f"Voucher duration: {duration}")
-
-        # Placeholder: Call Safaricom API and handle response
-        # Ensure proper JSON parsing and logging
-        safaricom_response = {"status": "success", "message": "Transaction processed"}
-        return jsonify({"success": True, "data": safaricom_response}), 200
-
-    except Exception as e:
-        current_app.logger.error(f"Unexpected error: {e}")
-        return jsonify({"success": False, "error": f"Unexpected error: {str(e)}"}), 500
-
 
 
 def sanitize_phone_number(phone_number):
@@ -78,54 +28,87 @@ def sanitize_phone_number(phone_number):
     return phone_number
 
 
+@mpesa_bp.route('/buy-voucher', methods=['POST'])
+def buy_voucher():
+    raw_data = request.get_json()
+    phone_number = raw_data.get('phone_number')
+    amount = raw_data.get('amount')
+    voucher_data = raw_data.get('voucher_data')
+    voucher_duration = raw_data.get('voucher_duration')
 
-def initiate_stk_push(phone_number, amount):
+    current_app.logger.info(f"Raw request payload: {raw_data}")
+    current_app.logger.info(f"Phone number: {phone_number}")
+    current_app.logger.info(f"Amount: {amount}")
+    current_app.logger.info(f"Voucher duration: {voucher_duration}")
+
+    # Step 1: Get Access Token
+    access_token = get_access_token()
+
+    # Step 2: Send STK Push
+    stk_push_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {
+        "BusinessShortCode": "174379",
+        "Password": password,
+        "Timestamp": timestamp,
+        "TransactionType": "CustomerPayBillOnline",
+        "Amount": amount,
+        "PartyA": phone_number,
+        "PartyB": "174379",
+        "PhoneNumber": phone_number,
+        "CallBackURL": "https://1fa3-105-161-95-134.ngrok-free.app/mpesa_callback",
+        "AccountReference": "Voucher",
+        "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
+    }
+
+    response = requests.post(stk_push_url, headers=headers, json=payload)
+    if response.status_code == 200:
+        stk_response = response.json()
+        current_app.logger.info(f"STK Push Response: {stk_response}")
+        return jsonify({"status": "success", "stk_response": stk_response}), 200
+    else:
+        current_app.logger.error(f"Failed STK Push: {response.text}")
+        return jsonify({"status": "error", "message": "Failed to send STK Push"}), 500
+
+
+def initiate_stk_push(phone_number, amount, voucher_data, voucher_duration, account_reference, transaction_desc):
+    # Step 1: Generate the dynamic password and timestamp
+    password, timestamp = generate_password()
+
+    # Step 2: Get an access token
+    access_token = get_access_token()
+
+    # Step 3: Prepare the request payload
+    stk_push_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "BusinessShortCode": "174379",
+        "Password": "password",
+        "Timestamp": "%Y%m%d%H%M%S",
+        "TransactionType": "CustomerPayBillOnline",
+        "Amount": amount,
+        "PartyA": phone_number,
+        "PartyB": "174379",
+        "PhoneNumber": phone_number,
+        "CallBackURL": "https://1fa3-105-161-95-134.ngrok-free.app/mpesa_callback",
+        "AccountReference": "Voucher",
+        "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
+    }
+
+    # Step 4: Send the POST request to Safaricom API
     try:
-        phone_number = sanitize_phone_number(phone_number) # Ensure correct format
-        access_token = get_access_token()
-        password, timestamp = generate_password()
+        response = requests.post(stk_push_url, headers=headers, json=payload)
+        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
 
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "BusinessShortCode": "174379",  # Your Business Shortcode
-            "Password": password,
-            "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
-            "Amount": 1,
-            "PartyA": "254746919779",  # Formatted phone number
-            "PartyB": "174379",  # Your PartyB (business shortcode)
-            "PhoneNumber": "254746919779", # customer's  phone number
-            "CallBackURL": "https://41df-2c0f-fe38-224c-66b9-fd16-2f36-c647-e4e9.ngrok-free.app/mpesa_callback",
-            "AccountReference": "WiFi Voucher",
-            "TransactionDesc": "Purchase WiFi Voucher",
-        }
-
-        # Log the payload
-        print("STK Push Payload:", payload)
-
-        # Make the STK Push request
-        data = request.get_json()
-        response = initiate_stk_push(data.get('phone_number'), int(data.get('amount', 0)))
-        print(response)
-        response = requests.post("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", headers=headers, json=payload)
-
-        # Log the response status and body
-        print("STK Push Response Status:", response.status_code)
-        print("STK Push Response Text:", response.text)
-
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return {"error": response.json()}
-    except Exception as e:
-
+        # If the request is successful, return the JSON response
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        # Log the failure and return an error message
+        print(f"Error initiating STK Push: {e}")
         return {"error": str(e)}
-
-
 
 
 @mpesa_bp.route('/mpesa-callback', methods=['POST'])

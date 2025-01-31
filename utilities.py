@@ -1,16 +1,17 @@
 from datetime import datetime
 import base64
 from dotenv import load_dotenv
-
+import requests
 
 # Load environment variables from the .env file
 load_dotenv()
 
 def get_timestamp():
     """
-    Generate the current timestamp in the required format (YYYYMMDDHHMMSS).
-    """
+       Generate the current timestamp in the required format (YYYYMMDDHHMMSS).
+       """
     return datetime.now().strftime("%Y%m%d%H%M%S")
+
 
 
 def generate_password():
@@ -19,9 +20,13 @@ def generate_password():
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     data_to_encode = f"{shortcode}{passkey}{timestamp}"
     password = base64.b64encode(data_to_encode.encode()).decode()
-    return password
+    return password, timestamp
 
-import requests
+password, timestamp = generate_password()
+print(f"Generated Timestamp: {timestamp}")
+print(f"Generated Password: {password}")
+
+
 
 
 def get_access_token():
@@ -52,7 +57,6 @@ def get_access_token():
     except requests.exceptions.RequestException as e:
         print(f"Error fetching access token: {e}")
         return None
-
 
 
 # Test the function
