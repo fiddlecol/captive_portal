@@ -116,6 +116,11 @@ def mpesa_callback():
     callback_data = request.get_json()
     current_app.logger.info(f"MPesa Callback Data Received: {callback_data}")
 
+    # Validate callback data
+    if not callback_data or "Body" not in callback_data:
+        current_app.logger.error("Invalid callback data received")
+        return jsonify({"ResultCode": 1, "ResultDesc": "Invalid callback data"}), 400
+
     try:
         # Extract relevant fields from callback
         stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
@@ -124,7 +129,7 @@ def mpesa_callback():
         checkout_request_id = stk_callback.get("CheckoutRequestID")
         callback_metadata = stk_callback.get("CallbackMetadata", {}).get("Item", [])
 
-        # Log callback details
+        # Log minimal details
         current_app.logger.info(
             f"MPesa Callback: ResultCode={result_code}, ResultDesc={result_desc}, "
             f"CheckoutRequestID={checkout_request_id}"
@@ -139,6 +144,13 @@ def mpesa_callback():
                 f"Transaction not found for CheckoutRequestID: {checkout_request_id}"
             )
             return jsonify({"ResultCode": 1, "ResultDesc": "Transaction not found"}), 404
+
+        # Check for duplicate processing
+        if transaction.status in ["SUCCESS", "FAILED"]:
+            current_app.logger.info(
+                f"Skipping already processed transaction {transaction.id}"
+            )
+            return jsonify({"ResultCode": 0, "ResultDesc": "Callback already processed"}), 200
 
         # Update transaction details
         if result_code == 0:  # Payment succeeded

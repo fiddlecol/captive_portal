@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Login</title>
      <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
        <link rel="icon" type="image/x-icon" href="/static/internet.png">
@@ -9,14 +10,47 @@
 <body>
     <div class="container">
         <h1 class="title">Enter your Voucher Code</h1>
-        <form class="form" method="POST" action="/login">
-
-            <label for="voucher" class="form-label">Voucher Code:</label>
-            <input type="text" id="voucher" name="voucher" class="form-input" required>
-            <button type="submit" class="form-button">Login</button>
-    </form>
+        <form id="loginForm">
+    <label for="voucher">Enter Voucher Code:</label>
+    <input type="text" id="voucher" name="voucher" placeholder="Voucher Code" required>
+    <button type="submit" id="loginButton">Login</button>
+        </form>
         <p class="paragraph">Don't have a voucher? <a href="/buy" class="link">Buy one here</a></p>
     </div>
+
+<script>
+document.getElementById("loginForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const voucherCode = document.getElementById("voucher").value.trim();
+
+    if (!voucherCode) {
+        alert("Please enter a valid voucher code.");
+        return;
+    }
+
+    const payload = { transaction_reference: voucherCode };
+
+    try {
+        const response = await fetch("/mpesa/validate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert("Login successful!");
+            window.location.href = "/success"; // Redirect to success page
+        } else {
+            alert("Error: " + result.error);
+        }
+    } catch (error) {
+        alert("Network Error: " + error.message);
+    }
+});
+</script>
 
 </body>
 <footer>
