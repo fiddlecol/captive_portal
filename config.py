@@ -3,8 +3,6 @@ import os
 from dotenv import load_dotenv
 from flask import current_app
 
-from routes.mpesa import get_access_token
-
 # Load environment variables from the .env file
 load_dotenv()
 
@@ -15,11 +13,9 @@ CONSUMER_SECRET = os.getenv("CONSUMER_SECRET")
 PASSKEY = os.getenv("PASSKEY")
 SHORTCODE = os.getenv("SHORTCODE")
 CALLBACK_URL = os.getenv("CALLBACK_URL")
+LIPA_NA_MPESA_URL="https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
 AUTH_URL = os.getenv( "AUTH_URL", "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
 )
-
-
-current_app.config["ACCESS_TOKEN"] = get_access_token()
 
 
 class Config:

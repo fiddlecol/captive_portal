@@ -157,8 +157,6 @@
         user_type: sanitizeInput(userType),
     };
 
-
-
     // Disable the submit button to prevent multiple submissions
     const submitButton = document.querySelector("button[type='submit']");
     if (submitButton) submitButton.disabled = true;
@@ -183,11 +181,6 @@
         if (submitButton) submitButton.disabled = false;
     }
 }
-
-
-
-// Ensuring only one submit listener is added
-
 
     /**
      * Handle voucher login

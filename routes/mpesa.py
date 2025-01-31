@@ -1,52 +1,16 @@
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
+from config import LIPA_NA_MPESA_URL
 from extensions import db
-from utilities import current_app, datetime, base64, generate_password
+from utilities import get_access_token, generate_password
 from dotenv import load_dotenv
 import re
+
 
 # Load environment variables from the .env file
 load_dotenv()
 
 mpesa_bp = Blueprint("mpesa_bp", __name__)
-
-
-def get_access_token():
-    # Replace these with your actual credentials
-    consumer_key = "Wlh60goVFPOXmsmYmckZAi44rfuzFBRVUAl8QPgTNvZsOGra"
-    consumer_secret = "RtCL8XMDLCfQfGO0zjpUauCFnJO6dAikMlFUaOV2RMY7tfQP0AOXyr9GbOUC7VLn"
-    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-
-    try:
-        # Use Basic Authentication to send the credentials
-        response = requests.get(url, auth=(consumer_key, consumer_secret))
-
-        # Log the response for debugging
-        print(f"Request URL: {url}")
-        print(f"Response Status Code: {response.status_code}")
-        print(f"Response Text: {response.text}")
-
-        # Raise an exception for HTTP errors
-        response.raise_for_status()
-
-        # Parse and return the access token
-        data = response.json()
-        access_token = data.get("access_token")
-        if not access_token:
-            raise ValueError("No access token found in the response.")
-        return access_token
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching access token: {e}")
-        return None
-
-
-# Test the function
-token = get_access_token()
-if token:
-    print(f"\nAccess Token: {token}")
-else:
-    print("\nFailed to retrieve access token.")
 
 
 @mpesa_bp.route('/buy-voucher', methods=['POST'])
@@ -88,9 +52,16 @@ def buy_voucher():
                 f"Invalid voucher amount: {amount}. "
                 f"Allowed values: {list(allowed_vouchers.keys())}"
             )
+        voucher_data = data.get('voucher_data', '')
+        if not voucher_data:
+            raise ValueError("Voucher data is missing.")
+
+        allowed_data = ["1 GB", "3 GB", "6 GB", "10 GB", "Unlimited"]
+        if voucher_data not in allowed_data:
+            raise ValueError(f"Invalid voucher data. Allowed values: {', '.join(allowed_data)}")
 
         # Log successful validation
-        current_app.logger.info("Amount and duration validated successfully")
+        current_app.logger.info("Amount, data and duration validated successfully")
 
         # (Placeholder) Process the request - M-Pesa transaction logic would go here
         return jsonify({"success": True, "message": "Voucher purchase request received."}), 200
@@ -123,76 +94,55 @@ def sanitize_phone_number(phone_number):
 
 
 
-def initiate_stk_push(access_token, phone_number, amount):
+def initiate_stk_push(phone_number, amount):
     try:
-        sanitized_phone = sanitize_phone_number(phone_number)  # Sanitize phone number
-
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-
-        payload = {
-            "BusinessShortCode": "174379",  # Replace with your actual Business Short Code
-            "Password": base64.b64encode(f"174379{generate_password()}{timestamp}".encode()).decode(),
-            "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
-            "Amount": amount,
-            "PartyA": sanitized_phone,
-            "PartyB": "174379",  # Replace with your actual Business Short Code
-            "PhoneNumber": sanitized_phone,  # Customer phone number
-            "CallBackURL": "https://2a65-41-81-136-4.ngrok-free.app/mpesa_callback",
-            "AccountReference": "TestPayment",
-            "TransactionDesc": "Payment for Testing",
-        }
+        phone_number = sanitize_phone_number(phone_number) # Ensure correct format
+        access_token = get_access_token()
+        password, timestamp = generate_password()
 
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
 
-        # Send the STK Push request
-        response = requests.post(
-            "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
-            json=payload,
-            headers=headers,
-        )
+        payload = {
+            "BusinessShortCode": "174379",  # Your Business Shortcode
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": 1,
+            "PartyA": "254746919779",  # Formatted phone number
+            "PartyB": "174379",  # Your PartyB (business shortcode)
+            "PhoneNumber": "254746919779", # customer's  phone number
+            "CallBackURL": "https://41df-2c0f-fe38-224c-66b9-fd16-2f36-c647-e4e9.ngrok-free.app/mpesa_callback",
+            "AccountReference": "WiFi Voucher",
+            "TransactionDesc": "Purchase WiFi Voucher",
+        }
 
-        print(f"STK Push Response (Status {response.status_code}): {response.text}")
-        response.raise_for_status()  # Raise exception on HTTP errors
+        # Log the payload
+        print("STK Push Payload:", payload)
 
-        return response.json()
+        # Make the STK Push request
 
-    except ValueError as ve:
-        print(f"Validation Error: {ve}")
-        return {"success": False, "error": str(ve)}
-    except requests.RequestException as re:
-        print(f"Request Error: {re}")
-        return {"success": False, "error": "A network error occurred."}
+        response = requests.post(LIPA_NA_MPESA_URL, headers=headers, json=payload)
 
+        # Log the response status and body
+        print("STK Push Response Status:", response.status_code)
+        print("STK Push Response Text:", response.text)
 
-# Route to handle voucher validation/login
-@mpesa_bp.route('/validate', methods=['POST'])
-def validate_voucher():
-    try:
-        # Parse the incoming JSON request
-        data = request.json
-        print("Data received for validation:", data)
-
-        # Extract required fields
-        transaction_reference = data.get('transaction_reference')
-
-        # Check if transaction_reference is present
-        if not transaction_reference:
-            return jsonify({"success": False, "error": "Missing voucher code"}), 400
-
-            # Example validation logic
-            # Replace this with real validation (e.g., database query)
-        if transaction_reference.startswith("FID-"):  # Check format
-            return jsonify({"success": True, "message": "Voucher code validated"}), 200
+        if response.status_code == 200:
+            return response.json()
         else:
-            return jsonify({"success": False, "error": "Invalid voucher code"}), 400
-
+            return {"error": response.json()}
     except Exception as e:
-        current_app.logger.error(f"Exception in validate_voucher: {str(e)}")
-        return jsonify({"success": False, "error": "An internal error occurred"}), 500
+        return {"error": str(e)}
+
+# Example usage: Initiating STK Push
+phone_number = "254708374149"  # Replace with the customer's phone number
+amount = 50  # Amount to charge
+
+response = initiate_stk_push(phone_number, amount)
+print(response)
 
 
 @mpesa_bp.route('/mpesa-callback', methods=['POST'])
@@ -245,3 +195,32 @@ def mpesa_callback():
         current_app.logger.error(f"Exception in mpesa_callback: {e}")
         db.session.rollback()
         return jsonify({"ResultCode": 1, "ResultDesc": "Error processing callback"}), 500
+
+
+# Route to handle voucher validation/login
+@mpesa_bp.route('/validate', methods=['POST'])
+def validate_voucher():
+    try:
+        # Parse the incoming JSON request
+        data = request.json
+        print("Data received for validation:", data)
+
+        # Extract required fields
+        transaction_reference = data.get('transaction_reference')
+
+        # Check if transaction_reference is present
+        if not transaction_reference:
+            return jsonify({"success": False, "error": "Missing voucher code"}), 400
+
+            # Example validation logic
+            # Replace this with real validation (e.g., database query)
+        if transaction_reference.startswith("FID-"):  # Check format
+            return jsonify({"success": True, "message": "Voucher code validated"}), 200
+        else:
+            return jsonify({"success": False, "error": "Invalid voucher code"}), 400
+
+    except Exception as e:
+        current_app.logger.error(f"Exception in validate_voucher: {str(e)}")
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
+
+

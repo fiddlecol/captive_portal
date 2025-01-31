@@ -1,9 +1,7 @@
-from flask import Flask
-from extensions import db
+from flask_sqlalchemy import SQLAlchemy
 
-# Create the Flask application
-app = Flask(__name__)
 
+db = SQLAlchemy()
 
 class Voucher(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -31,14 +29,7 @@ class PaymentTransaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="PENDING")
     receipt_number = db.Column(db.String(20), nullable=True)
-    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    created_at = db.Column(db.DateTime, default=db.func.now())
 
     def __repr__(self):
         return f"<PaymentTransaction {self.checkout_request_id}>"
-
-
-# Trigger the table creation process
-if __name__ == "__main__":  # This ensures it doesn't run on model imports elsewhere
-    with app.app_context():
-        db.create_all()
-        print("Database tables created successfully!")

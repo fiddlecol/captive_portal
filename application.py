@@ -8,24 +8,24 @@ import os
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 
-
 def create_app():
     app = Flask(__name__)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///instance/application.db"
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))  # Absolute directory of the app
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'instance/application.db')}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-
-    # Initialize extensions
+    # Initialize database (bind db with the Flask app)
     db.init_app(app)
 
     # Register routes/blueprints
     init_routes(app)
 
-    return app  # Return 'flask_app'
+    # Create database tables (if not already created)
+    with app.app_context():
+        db.create_all()
 
+    return app
 
-app = create_app()  # Assign the function output to 'app', keeping it global
-
+app = create_app()
 
 @app.route("/")
 def home():

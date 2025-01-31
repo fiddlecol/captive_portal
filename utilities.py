@@ -1,7 +1,11 @@
-from flask import current_app
+import requests
 from datetime import datetime
 import base64
+from dotenv import load_dotenv
 
+
+# Load environment variables from the .env file
+load_dotenv()
 
 def get_timestamp():
     """
@@ -11,18 +15,46 @@ def get_timestamp():
 
 
 def generate_password():
-    """
-    Generate a security password required for Mpesa STK Push.
+    shortcode = "174379"
+    passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    data_to_encode = f"{shortcode}{passkey}{timestamp}"
+    password = base64.b64encode(data_to_encode.encode()).decode()
+    return password
 
-    Combines BusinessShortCode, Passkey, and Timestamp, then encodes it using Base64.
-    """
+def get_access_token():
+    # Replace these with your actual credentials
+    consumer_key = "Wlh60goVFPOXmsmYmckZAi44rfuzFBRVUAl8QPgTNvZsOGra"
+    consumer_secret = "RtCL8XMDLCfQfGO0zjpUauCFnJO6dAikMlFUaOV2RMY7tfQP0AOXyr9GbOUC7VLn"
+    url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
 
-    business_short_code = current_app.config.get("174379")
-    passkey = current_app.config.get("bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919")
-    timestamp = get_timestamp()
+    try:
+        # Use Basic Authentication to send the credentials
+        response = requests.get(url, auth=(consumer_key, consumer_secret))
 
-    # Combine and encode
-    data_to_encode = business_short_code + passkey + timestamp
-    encoded_password = base64.b64encode(data_to_encode.encode()).decode()
+        # Log the response for debugging
+        print(f"Request URL: {url}")
+        print(f"Response Status Code: {response.status_code}")
+        print(f"Response Text: {response.text}")
 
-    return encoded_password
+        # Raise an exception for HTTP errors
+        response.raise_for_status()
+
+        # Parse and return the access token
+        data = response.json()
+        access_token = data.get("access_token")
+        if not access_token:
+            raise ValueError("No access token found in the response.")
+        return access_token
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching access token: {e}")
+        return None
+
+
+# Test the function
+token = get_access_token()
+if token:
+    print(f"\nAccess Token: {token}")
+else:
+    print("\nFailed to retrieve access token.")
