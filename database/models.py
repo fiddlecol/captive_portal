@@ -19,17 +19,15 @@ class Client(db.Model):
 
 
 
-
 class PaymentTransaction(db.Model):
-    __tablename__ = "payment_transactions"
+    __tablename__ = 'payment_transactions'
 
     id = db.Column(db.Integer, primary_key=True)
-    checkout_request_id = db.Column(db.String(50), unique=True, nullable=False)
-    phone_number = db.Column(db.String(12), nullable=False)
+    checkout_request_id = db.Column(db.String(255), nullable=False, unique=True)
+    receipt_number = db.Column(db.String(255), nullable=True)
     amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="PENDING")
-    receipt_number = db.Column(db.String(20), nullable=True)
-    created_at = db.Column(db.DateTime, default=db.func.now())
+    status = db.Column(db.String(50), default='PENDING')  # e.g., PENDING, SUCCESS, FAILED
+    phone_number = db.Column(db.String(15), nullable=True)
 
     def __repr__(self):
-        return f"<PaymentTransaction {self.checkout_request_id}>"
+        return f'<PaymentTransaction {self.checkout_request_id}>'

@@ -1,9 +1,12 @@
 from flask import Flask, render_template
 from routes import init_routes
-from models import db
+from database.models import db
 import sys
 import os
-
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'mpesa'))
+from routes import mpesa_bp
 # Add the project directory to the Python path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify, current_app
 from extensions import db
 from utilities import get_access_token, generate_password, password, timestamp
-from models import PaymentTransaction
+from database.models import PaymentTransaction
 
 
 load_dotenv()
@@ -138,7 +138,7 @@ def mpesa_callback():
         )
 
         # Find transaction in the database
-        from models import PaymentTransaction
+
         transaction = PaymentTransaction.query.filter_by(checkout_request_id=checkout_request_id).first()
 
         if not transaction:
