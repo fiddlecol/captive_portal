@@ -18,7 +18,6 @@ class Client(db.Model):
     connected_at = db.Column(db.DateTime, default=db.func.now())
 
 
-
 class PaymentTransaction(db.Model):
     __tablename__ = 'payment_transactions'
 
@@ -26,8 +25,11 @@ class PaymentTransaction(db.Model):
     checkout_request_id = db.Column(db.String(255), nullable=False, unique=True)
     receipt_number = db.Column(db.String(255), nullable=True)
     amount = db.Column(db.Float, nullable=False)
-    status = db.Column(db.String(50), default='PENDING')  # e.g., PENDING, SUCCESS, FAILED
+    status = db.Column(db.String(50), default='PENDING')
     phone_number = db.Column(db.String(15), nullable=True)
 
     def __repr__(self):
         return f'<PaymentTransaction {self.checkout_request_id}>'
+
+    # Explicitly expose the models for import
+    __all__ = ["Voucher", "Client", "PaymentTransaction", "db"]

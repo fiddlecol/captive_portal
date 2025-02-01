@@ -1,8 +1,6 @@
 from flask import Flask, render_template
-from routes import init_routes
 from database.models import db
-import sys
-import os
+from routes import init_routes
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'mpesa'))
