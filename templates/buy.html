@@ -121,34 +121,31 @@
     /**
      * Handle phone number submission for voucher purchase
      */
-    async function submitPhoneNumber(event) {
-        console.log("submitPhoneNumber triggered");
-        event.preventDefault();
-        console.log("submitPhoneNumber event:", event);
+    /**
+ * Handle phone number submission for voucher purchase
+ */
+async function submitPhoneNumber(event) {
+    console.log("submitPhoneNumber triggered");
+    event.preventDefault();
 
-          // Check if the request has already been sent
-    if (window.requestSent) {
-        console.log("Request already sent. Skipping...");
-        return;
-    }
-
-    // Get the input values
     const phoneNumberInput = document.getElementById("phoneNumber").value;
     const voucherAmount = document.getElementById("voucherAmount").value;
     const voucherData = document.getElementById("voucherData").value;
     const voucherDuration = document.getElementById("voucherDuration").value;
     const userType = document.getElementById("userType").value;
 
-    // Sanitize the phone number input
     const phoneNumber = sanitizeInput(phoneNumberInput);
 
-    // Validate the phone number format
+    // Validate input
     if (!phoneNumber.match(/^\+254(7|1)[0-9]{8}$/)) {
         alert("Please enter a valid phone number in the format +254XXXXXXXXX.");
         return;
     }
+    if (!voucherAmount || !voucherData || !voucherDuration) {
+        alert("Please select a valid voucher plan before submitting.");
+        return;
+    }
 
-    // Create the payload
     const payload = {
         phone_number: phoneNumber.replace("+", ""),
         amount: parseInt(voucherAmount, 10),
@@ -157,31 +154,57 @@
         user_type: sanitizeInput(userType),
     };
 
-    // Disable the submit button to prevent multiple submissions
-    const submitButton = document.querySelector("button[type='submit']");
-    if (submitButton) submitButton.disabled = true;
-
-    // Flag the request as sent
-    window.requestSent = true;
-
     console.log("Request Payload:", payload); // Log payload for debugging
 
-    try {
-        // Send the request
-        const result = await postRequest("/mpesa/buy-voucher", payload);
+    const submitButton = document.querySelector("button[type='submit']");
+    const loadingElement = document.getElementById("loading");
 
-        // Show success message
-        alert("Voucher purchase successful! " + result.message);
+    // Disable UI elements to prevent multiple submissions
+    if (submitButton) submitButton.disabled = true;
+    window.requestSent = true;
+    loadingElement.style.display = "block";
+
+    try {
+        // Send the purchase request
+        const result = await postRequest("/mpesa/buy-voucher", payload);
+        alert("Payment initiated!Enter your Mpesa pin... Waiting for confirmation...");
+
+        // Start polling payment status
+        if (result.checkout_request_id) {
+            await pollTransactionStatus(payload.phone_number, result.checkout_request_id);
+        }
     } catch (error) {
-        // Handle errors
         alert("Error: " + error.message);
     } finally {
-        // Reset the request flag and re-enable the button after request completion
+        // Reset UI state
         window.requestSent = false;
         if (submitButton) submitButton.disabled = false;
+        loadingElement.style.display = "none";
     }
 }
 
+const pollPaymentStatus = () => {
+    const interval = setInterval(() => {
+        fetch("/mpesa/payment-status") // Adjust this route if needed
+            .then((response) => response.json())
+            .then((data) => {
+                console.log("Payment Status:", data);
+
+                if (data.status === "SUCCESS") {
+                    clearInterval(interval); // Stop polling
+                    console.log("Payment Successful:", data);
+                    window.location.href = "/success"; // Redirect to success page
+                } else if (data.status === "FAILED") {
+                    clearInterval(interval); // Stop polling if payment failed
+                    console.error("Payment Failed: ", data.message);
+                }
+            })
+            .catch((err) => {
+                console.error("Error checking payment status:", err);
+                clearInterval(interval); // Stop polling on error
+            });
+    }, 5000); // Poll every 5 seconds
+};
     /**
      * Handle voucher login
      */
@@ -212,6 +235,11 @@
 
     if (loginForm) loginForm.addEventListener('submit', submitVoucherCode);
 </script>
+
+<div id="loading" style="display: none;">
+    <p>Processing your request, please wait...</p>
+    <link rel="icon" type="image/x-icon" href="/static/loading.gif"> alt="Loading">
+</div>
 
 </body>
 <footer>

@@ -1,19 +1,17 @@
 import re
+from datetime import datetime
 import requests
-from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify, current_app
-from extensions import db
-from utilities import get_access_token, generate_password, password, timestamp
-from database.models import PaymentTransaction
+from sqlalchemy.exc import SQLAlchemyError
+from database.models import PaymentTransaction, db
+from utilities import get_access_token, get_password_and_timestamp
+from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
 
-
-load_dotenv()
-
-mpesa_bp = Blueprint("mpesa_bp", __name__)
+mpesa_bp = Blueprint("mpesa", __name__)
 
 
 def sanitize_phone_number(phone_number):
-    print("Raw Phone Input:", phone_number)  # Debugging line
+    current_app.logger.info(f"Raw Phone Input: {phone_number}")
     if not phone_number:
         raise ValueError("Phone number is required.")
 
@@ -33,156 +31,81 @@ def sanitize_phone_number(phone_number):
 @mpesa_bp.route('/buy-voucher', methods=['POST'])
 def buy_voucher():
     raw_data = request.get_json()
-    phone_number = raw_data.get('phone_number')
-    amount = raw_data.get('amount')
-    voucher_data = raw_data.get('voucher_data')
-    voucher_duration = raw_data.get('voucher_duration')
-
-    current_app.logger.info(f"Raw request payload: {raw_data}")
-    current_app.logger.info(f"Phone number: {phone_number}")
-    current_app.logger.info(f"Amount: {amount}")
-    current_app.logger.info(f"Voucher duration: {voucher_duration}")
-
-    # Step 1: Get Access Token
-    access_token = get_access_token()
-
-    # Step 2: Send STK Push
-    stk_push_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-    headers = {"Authorization": f"Bearer {access_token}"}
-    payload = {
-        "BusinessShortCode": "174379",
-        "Password": password,
-        "Timestamp": timestamp,
-        "TransactionType": "CustomerPayBillOnline",
-        "Amount": amount,
-        "PartyA": phone_number,
-        "PartyB": "174379",
-        "PhoneNumber": phone_number,
-        "CallBackURL": "https://1fa3-105-161-95-134.ngrok-free.app/mpesa_callback",
-        "AccountReference": "Voucher",
-        "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
-    }
-
-    response = requests.post(stk_push_url, headers=headers, json=payload)
-    if response.status_code == 200:
-        stk_response = response.json()
-        current_app.logger.info(f"STK Push Response: {stk_response}")
-        return jsonify({"status": "success", "stk_response": stk_response}), 200
-    else:
-        current_app.logger.error(f"Failed STK Push: {response.text}")
-        return jsonify({"status": "error", "message": "Failed to send STK Push"}), 500
-
-
-def initiate_stk_push(phone_number, amount, voucher_data, voucher_duration, account_reference, transaction_desc):
-    # Step 1: Generate the dynamic password and timestamp
-    password, timestamp = generate_password()
-
-    # Step 2: Get an access token
-    access_token = get_access_token()
-
-    # Step 3: Prepare the request payload
-    stk_push_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "BusinessShortCode": "174379",
-        "Password": "password",
-        "Timestamp": "%Y%m%d%H%M%S",
-        "TransactionType": "CustomerPayBillOnline",
-        "Amount": amount,
-        "PartyA": phone_number,
-        "PartyB": "174379",
-        "PhoneNumber": phone_number,
-        "CallBackURL": "https://1fa3-105-161-95-134.ngrok-free.app/mpesa_callback",
-        "AccountReference": "Voucher",
-        "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
-    }
-
-    # Step 4: Send the POST request to Safaricom API
-    try:
-        response = requests.post(stk_push_url, headers=headers, json=payload)
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
-
-        # If the request is successful, return the JSON response
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        # Log the failure and return an error message
-        print(f"Error initiating STK Push: {e}")
-        return {"error": str(e)}
-
-
-@mpesa_bp.route('/mpesa-callback', methods=['POST'])
-def mpesa_callback():
-    callback_data = request.get_json()
-    current_app.logger.info(f"MPesa Callback Data Received: {callback_data}")
-
-    # Validate callback data
-    if not callback_data or "Body" not in callback_data:
-        current_app.logger.error("Invalid callback data received")
-        return jsonify({"ResultCode": 1, "ResultDesc": "Invalid callback data"}), 400
 
     try:
-        # Extract relevant fields from callback
-        stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
-        result_code = stk_callback.get("ResultCode")
-        result_desc = stk_callback.get("ResultDesc")
-        checkout_request_id = stk_callback.get("CheckoutRequestID")
-        callback_metadata = stk_callback.get("CallbackMetadata", {}).get("Item", [])
+        phone_number = sanitize_phone_number(raw_data.get('phone_number'))
+        amount = raw_data.get('amount')
+        voucher_data = raw_data.get('voucher_data', "DefaultVoucher")
+        voucher_duration = raw_data.get('voucher_duration')
 
-        # Log minimal details
-        current_app.logger.info(
-            f"MPesa Callback: ResultCode={result_code}, ResultDesc={result_desc}, "
-            f"CheckoutRequestID={checkout_request_id}"
-        )
+        if not amount or not voucher_data or not voucher_duration:
+            return jsonify({"status": "error", "message": "Missing required fields"}), 400
 
-        # Find transaction in the database
+        current_app.logger.info(f"MPesa STK Push Request: {raw_data}")
 
-        transaction = PaymentTransaction.query.filter_by(checkout_request_id=checkout_request_id).first()
+        password, timestamp = get_password_and_timestamp()
+        access_token = get_access_token()
 
-        if not transaction:
-            current_app.logger.error(
-                f"Transaction not found for CheckoutRequestID: {checkout_request_id}"
-            )
-            return jsonify({"ResultCode": 1, "ResultDesc": "Transaction not found"}), 404
+        payload = {
+            "BusinessShortCode": SHORTCODE,
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount,
+            "PartyA": phone_number,
+            "PartyB": SHORTCODE,
+            "PhoneNumber": phone_number,
+            "CallBackURL": CALLBACK_URL,
+            "AccountReference": f"Voucher_{voucher_data}",
+            "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
+        }
 
-        # Check for duplicate processing
-        if transaction.status in ["SUCCESS", "FAILED"]:
-            current_app.logger.info(
-                f"Skipping already processed transaction {transaction.id}"
-            )
-            return jsonify({"ResultCode": 0, "ResultDesc": "Callback already processed"}), 200
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.post(STK_PUSH_URL, headers=headers, json=payload)
 
-        # Update transaction details
-        if result_code == 0:  # Payment succeeded
-            transaction.status = "SUCCESS"
-            for item in callback_metadata:
-                if item["Name"] == "MpesaReceiptNumber":
-                    transaction.receipt_number = item["Value"]
-        else:  # Payment failed
-            transaction.status = "FAILED"
+        current_app.logger.info(f"STK Push Response JSON: {response.json()}")
 
-        db.session.commit()
-        current_app.logger.info(
-            f"Updated transaction {transaction.id} status to {transaction.status}"
-        )
+        if response.status_code == 200:
+            stk_response = response.json()
+            if stk_response.get("ResponseCode") != "0":
+                error_message = stk_response.get("errorMessage", "Unknown error occurred.")
+                current_app.logger.error(f"STK Push failed: {error_message}")
+                return jsonify({"status": "error", "message": f"STK Push failed: {error_message}"}), 400
 
-        # Respond to M-Pesa
-        return jsonify({"ResultCode": 0, "ResultDesc": "Callback processed successfully"}), 200
+            try:
+                transaction = PaymentTransaction(
+                    checkout_request_id=stk_response.get("CheckoutRequestID"),
+                    phone_number=phone_number,
+                    amount=float(amount),
+                    status="PENDING",
+                    description=f"Voucher for {voucher_data} ({voucher_duration})"
+                )
+                db.session.add(transaction)
+                current_app.logger.info(f"Transaction to be saved: {transaction}")
 
+                db.session.commit()
+                current_app.logger.info(
+                    f"Transaction saved: ID {transaction.id}, CheckoutRequestID {transaction.checkout_request_id}")
+                return jsonify({"status": "success", "stk_response": stk_response}), 200
+            except SQLAlchemyError as db_ex:
+                db.session.rollback()
+                current_app.logger.error(f"Database error: {db_ex}")
+                return jsonify({"status": "error", "message": "Database error occurred"}), 500
+
+        current_app.logger.error(f"Unexpected response from STK Push: {response.text}")
+        return jsonify({"status": "error", "message": "Failed to process STK Push"}), 500
+
+    except requests.RequestException as req_ex:
+        current_app.logger.error(f"RequestException during STK Push: {req_ex}")
+        return jsonify({"status": "error", "message": "STK Push request failed"}), 500
     except Exception as e:
-        current_app.logger.error(f"Exception in mpesa_callback: {e}")
-        db.session.rollback()
-        return jsonify({"ResultCode": 1, "ResultDesc": "Error processing callback"}), 500
+        current_app.logger.exception("Unexpected error during buy-voucher")
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
-# Route to handle voucher validation/login
-@mpesa_bp.route('/validate', methods=['POST'])
+@mpesa_bp.route('/validate/<receipt_number>', methods=['GET'])
 def validate_voucher(receipt_number):
     transaction = PaymentTransaction.query.filter_by(receipt_number=receipt_number, status="SUCCESS").first()
     if transaction:
-        return True  # Voucher valid
-    return False  # Invalid voucher
-
-
+        return jsonify({"status": "success", "message": "Voucher is valid"}), 200
+    return jsonify({"status": "error", "message": "Invalid or expired voucher"}), 404

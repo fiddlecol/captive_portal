@@ -1,67 +1,60 @@
 from datetime import datetime
 import base64
-from dotenv import load_dotenv
 import requests
+import os
+import time
+from flask import current_app
+from config import OAUTH_URL, CONSUMER_KEY, CONSUMER_SECRET
 
-# Load environment variables from the .env file
-load_dotenv()
+# Credentials
+SHORTCODE = os.getenv('SHORTCODE')
+PASSKEY = os.getenv('PASSKEY')
 
-def get_timestamp():
+if not SHORTCODE or not PASSKEY:
+    current_app.logger.warning("SHORTCODE or PASSKEY is missing! Using defaults for testing.")
+    SHORTCODE = "123456"  # Example test shortcode
+    PASSKEY = "test_passkey"
+
+# Cache for access token
+cached_token = None
+token_expiry = 0
+
+def get_password_and_timestamp():
     """
-       Generate the current timestamp in the required format (YYYYMMDDHHMMSS).
-       """
-    return datetime.now().strftime("%Y%m%d%H%M%S")
-
-
-
-def generate_password():
-    shortcode = "174379"
-    passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    data_to_encode = f"{shortcode}{passkey}{timestamp}"
-    password = base64.b64encode(data_to_encode.encode()).decode()
+    Generate Base64-encoded password for MPesa STK Push.
+    """
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    password = base64.b64encode(f"{SHORTCODE}{PASSKEY}{timestamp}".encode()).decode("utf-8")
     return password, timestamp
 
-password, timestamp = generate_password()
-print(f"Generated Timestamp: {timestamp}")
-print(f"Generated Password: {password}")
-
-
-
-
 def get_access_token():
-    # Replace these with your actual credentials
-    consumer_key = "Wlh60goVFPOXmsmYmckZAi44rfuzFBRVUAl8QPgTNvZsOGra"
-    consumer_secret = "RtCL8XMDLCfQfGO0zjpUauCFnJO6dAikMlFUaOV2RMY7tfQP0AOXyr9GbOUC7VLn"
-    oauth_url = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+    """
+    Fetch MPesa access token, caching it to reduce API calls.
+    """
+    global cached_token, token_expiry
+
+    # Use cached token if it's still valid
+    if cached_token and time.time() < token_expiry:
+        return cached_token
+
+    # Request new access token
+    oauth_url = OAUTH_URL
+    auth = (CONSUMER_KEY, CONSUMER_SECRET)
 
     try:
-        # Use Basic Authentication to send the credentials
-        response = requests.get(oauth_url, auth=(consumer_key, consumer_secret))
-
-        # Log the response for debugging
-        print(f"Request URL: {oauth_url}")
-        print(f"Response Status Code: {response.status_code}")
-        print(f"Response Text: {response.text}")
-
-        # Raise an exception for HTTP errors
+        response = requests.get(oauth_url, auth=auth)
         response.raise_for_status()
-
-        # Parse and return the access token
         data = response.json()
-        access_token = data.get("access_token")
-        if not access_token:
-            raise ValueError("No access token found in the response.")
-        return access_token
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching access token: {e}")
-        return None
+        cached_token = data.get("access_token")
+        expires_in = data.get("expires_in", 3600)  # Default expiry 1 hour
+        token_expiry = time.time() + int(expires_in) - 10  # Renew slightly before expiration
 
+        if not cached_token:
+            raise ValueError("Failed to retrieve access token!")
 
-# Test the function
-token = get_access_token()
-if token:
-    print(f"\nAccess Token: {token}")
-else:
-    print("\nFailed to retrieve access token.")
+        current_app.logger.info(f"New Access Token Retrieved: {cached_token}")
+        return cached_token
+    except requests.RequestException as e:
+        current_app.logger.error(f"Error fetching MPesa access token: {e}")
+        raise

@@ -27,9 +27,11 @@ class PaymentTransaction(db.Model):
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(50), default='PENDING')
     phone_number = db.Column(db.String(15), nullable=True)
+    description = db.Column(db.String(255), nullable=True)  # Add the description field
 
     def __repr__(self):
         return f'<PaymentTransaction {self.checkout_request_id}>'
+
 
     # Explicitly expose the models for import
     __all__ = ["Voucher", "Client", "PaymentTransaction", "db"]

@@ -12,10 +12,8 @@ CONSUMER_SECRET = os.getenv("CONSUMER_SECRET")
 PASSKEY = os.getenv("PASSKEY")
 SHORTCODE = os.getenv("SHORTCODE")
 CALLBACK_URL = os.getenv("CALLBACK_URL")
-LIPA_NA_MPESA_URL="https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-AUTH_URL = os.getenv( "AUTH_URL", "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
-)
-
+STK_PUSH_URL=os.getenv("STK_PUSH_URL")
+OAUTH_URL = os.getenv("OAUTH_URL")
 
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv(

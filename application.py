@@ -1,24 +1,27 @@
 from flask import Flask, render_template
 from database.models import db
-from routes import init_routes
-import sys
+from routes.mpesa import mpesa_bp
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'mpesa'))
-from routes import mpesa_bp
-# Add the project directory to the Python path
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from flask_migrate import Migrate
+# Remove this line if unused
+from database.models import PaymentTransaction
+
 
 
 def create_app():
     app = Flask(__name__)
-    base_dir = os.path.abspath(os.path.dirname(__file__))  # Absolute directory of the app
+
+    # Configure the SQLite database
+    base_dir = os.path.abspath(os.path.dirname(__file__))
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(base_dir, 'instance/application.db')}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     # Initialize database (bind db with the Flask app)
     db.init_app(app)
+    migrate = Migrate(app, db)  # enable migration
 
     # Register routes/blueprints
-    init_routes(app)
+    app.register_blueprint(mpesa_bp, url_prefix="/mpesa")
+
 
     # Create database tables (if not already created)
     with app.app_context():
@@ -26,7 +29,9 @@ def create_app():
 
     return app
 
+
 app = create_app()
+
 
 @app.route("/")
 def home():
@@ -41,6 +46,14 @@ def buy():
 @app.route("/success")
 def success():
     return render_template("success.html")
+
+
+@app.route("/routes", methods=['GET'])
+def list_routes():
+    # List all registered routes in the application for debugging
+    routes = [str(rule) for rule in app.url_map.iter_rules()]
+    return {"routes": routes}
+
 
 
 if __name__ == "__main__":
