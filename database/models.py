@@ -23,14 +23,13 @@ class PaymentTransaction(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     checkout_request_id = db.Column(db.String(255), nullable=False, unique=True)
-    receipt_number = db.Column(db.String(255), nullable=True)
+    merchant_request_id = db.Column(db.String, nullable=False)
+    receipt_number = db.Column(db.String, nullable=True)
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(50), default='PENDING')
     phone_number = db.Column(db.String(15), nullable=True)
-    description = db.Column(db.String(255), nullable=True)  # Add the description field
-
-    def __repr__(self):
-        return f'<PaymentTransaction {self.checkout_request_id}>'
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
 
 
     # Explicitly expose the models for import

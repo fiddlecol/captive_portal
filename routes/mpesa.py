@@ -1,11 +1,10 @@
 import re
-from datetime import datetime
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy.exc import SQLAlchemyError
-from database.models import PaymentTransaction, db
-from utilities import get_access_token, get_password_and_timestamp
 from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
+from database.models import PaymentTransaction, db, Voucher, Client
+from utilities import get_access_token, get_password_and_timestamp
 
 mpesa_bp = Blueprint("mpesa", __name__)
 
@@ -61,7 +60,7 @@ def buy_voucher():
         }
 
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.post(STK_PUSH_URL, headers=headers, json=payload)
+        response = requests.post(STK_PUSH_URL, headers=headers, json=payload, timeout=30)
 
         current_app.logger.info(f"STK Push Response JSON: {response.json()}")
 
@@ -75,6 +74,7 @@ def buy_voucher():
             try:
                 transaction = PaymentTransaction(
                     checkout_request_id=stk_response.get("CheckoutRequestID"),
+                    merchant_request_id=stk_response.get("MerchantRequestID"),
                     phone_number=phone_number,
                     amount=float(amount),
                     status="PENDING",
@@ -103,9 +103,137 @@ def buy_voucher():
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
+@mpesa_bp.route('/mpesa_callback', methods=['POST'])
+def mpesa_callback():
+    import time
+    start_time = time.time()
+    current_app.logger.info(f"Callback started at: {start_time}")
+
+    try:
+        raw_data = request.data
+        current_app.logger.info(f"Raw data received: {raw_data}")
+
+        callback_data = request.get_json()
+        current_app.logger.info(f"Parsed JSON payload at: {time.time()}")
+
+        if not callback_data:
+            current_app.logger.error(f"Invalid JSON payload: {callback_data}")
+            return jsonify({"error": "Invalid payload"}), 400
+
+        merchant_request_id = callback_data.get('MerchantRequestID')
+        checkout_request_id = callback_data.get('CheckoutRequestID')
+
+        if not merchant_request_id or not checkout_request_id:
+            current_app.logger.error("Missing required fields")
+            return jsonify({"error": "Missing required fields"}), 400
+
+        current_app.logger.info(f"Fetching transaction from database at: {time.time()}")
+        transaction = PaymentTransaction.query.filter_by(
+            checkout_request_id=checkout_request_id,
+            merchant_request_id=merchant_request_id
+        ).first()
+
+        if not transaction:
+            current_app.logger.error("Transaction not found")
+            return jsonify({"error": "Transaction not found"}), 404
+
+        # Update transaction
+        transaction.receipt_number = callback_data.get('ReceiptNumber')
+        transaction.status = 'SUCCESS' if callback_data.get('ResultCode', 1) == 0 else 'FAILED'
+        current_app.logger.info(f"Updating transaction at: {time.time()}")
+
+        # Commit changes
+        db.session.commit()
+        end_time = time.time()
+        current_app.logger.info(f"Transaction updated and committed at: {end_time}")
+        current_app.logger.info(f"Total processing time: {end_time - start_time} seconds")
+
+        return jsonify({"message": "Transaction updated successfully"}), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Exception occurred: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+
 @mpesa_bp.route('/validate/<receipt_number>', methods=['GET'])
-def validate_voucher(receipt_number):
-    transaction = PaymentTransaction.query.filter_by(receipt_number=receipt_number, status="SUCCESS").first()
-    if transaction:
-        return jsonify({"status": "success", "message": "Voucher is valid"}), 200
-    return jsonify({"status": "error", "message": "Invalid or expired voucher"}), 404
+def validate_voucher():
+    """
+    Validate a voucher based on receipt number fetched from PaymentTransaction
+    """
+    try:
+        # Get the payload data from the request
+        data = request.get_json()
+
+        # Extract receipt_number and auto_login information from the request
+        receipt_number = data.get("receipt_number")
+        auto_login = data.get("auto_login", False)  # Manual login by default
+
+        # Ensure receipt_number is provided in the request
+        if not receipt_number:
+            return jsonify({"success": False, "message": "Receipt number is required"}), 400
+
+        # Fetch the receipt from the PaymentTransaction table with SUCCESS status
+        transaction = PaymentTransaction.query.filter_by(
+            receipt_number=receipt_number, status="SUCCESS"
+        ).first()
+
+        if not transaction:
+            return jsonify({"success": False, "message": "Invalid receipt number or transaction not successful"}), 404
+
+        # Use the receipt_number to fetch the associated Voucher
+        voucher = Voucher.query.filter_by(code=transaction.receipt_number).first()
+
+        if not voucher:
+            return jsonify({"success": False, "message": "No voucher found for this receipt number"}), 404
+
+        # Check if the voucher is already marked as used
+        if voucher.is_used:
+            return jsonify({"success": False, "message": "This voucher has already been used"}), 400
+
+        # Find the Client entry associated with the voucher
+        client = Client.query.filter_by(voucher_id=voucher.id).first()
+
+        if not client:
+            return jsonify({"success": False, "message": "No client is associated with this voucher"}), 404
+
+        # Mark the voucher as used
+        voucher.is_used = True
+
+        try:
+            # Persist the changes to the database
+            db.session.commit()
+        except Exception as commit_error:
+            db.session.rollback()  # Rollback on failure
+            current_app.logger.error(f"Database commit failed: {commit_error}")
+            return jsonify({"success": False, "message": "Failed to update voucher status"}), 500
+
+        # If auto-login is requested, provide login details and redirect info
+        if auto_login:
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Welcome! You are automatically logged in.",
+                    "client": {
+                        "id": client.id,
+                        "mac_address": client.mac_address,
+                        "connected_at": client.connected_at,
+                    },
+                    "auth_method": "auto_login",
+                }
+            ), 200
+
+        # If manual login, confirm validation success
+        return jsonify(
+            {
+                "success": True,
+                "message": "Voucher validated successfully! You may now manually log in.",
+                "auth_method": "manual_login",
+            }
+        ), 200
+
+    except Exception as e:
+        # Handle and log unexpected errors
+        current_app.logger.error(f"Unexpected error in validate_voucher: {str(e)}")
+        db.session.rollback()  # Rollback in case of unexpected errors
+        return jsonify({"success": False, "message": "Internal server error"}), 500

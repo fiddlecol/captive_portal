@@ -208,32 +208,82 @@ const pollPaymentStatus = () => {
     /**
      * Handle voucher login
      */
+
     async function submitVoucherCode(event) {
-        event.preventDefault();
+        event.preventDefault(); // Prevent default form submission behavior
 
-        const voucherCode = document.getElementById("transaction_reference").value.trim();
+        // Retrieve the voucher code entered by the user
+        const voucherInput = document.getElementById("voucherCode");
+        const autoLoginCheckbox = document.getElementById("autoLogin");
 
-        if (!voucherCode) {
-            alert("Please enter a valid voucher code.");
+        // Check if the voucher input exists
+        if (!voucherInput) {
+            alert("Cannot locate the voucher input field.");
             return;
         }
 
-        const payload = { transaction_reference: voucherCode };
+        const voucherCode = voucherInput.value.trim();
+
+        // Validate that the voucher code is not empty
+        if (!voucherCode) {
+            alert("Please enter a voucher code.");
+            return;
+        }
+
+        // Build the POST payload
+        const payload = {
+            receipt_number: voucherCode,
+            auto_login: autoLoginCheckbox ? autoLoginCheckbox.checked : false, // Pass auto-login preference
+        };
 
         try {
+            // Send the POST Request
             const result = await postRequest("/mpesa/validate", payload);
-            alert("Login successful!");
-            window.location.href = "/success";
+
+            if (result.success) {
+                if (result.auth_method === "auto_login") {
+                    alert("Login successful! Redirecting...");
+                    window.location.href = "/success"; // Redirect to success page
+                } else if (result.auth_method === "manual_login") {
+                    alert("Voucher validated successfully! You may now manually log in.");
+                }
+
+                // Optionally, pre-fill the voucher input field if valid
+                if (result.voucher_code) {
+                    voucherInput.value = result.voucher_code;
+                }
+            } else {
+                // Handle backend validation failure
+                alert("Error: " + (result.message || "Validation failed."));
+            }
         } catch (error) {
-            alert("Error: " + error.message);
+            // Handle request errors
+            alert("An error occurred: " + error.message);
         }
     }
 
+    // Utility function to send POST requests
+    async function postRequest(url, payload) {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorMessage = await response.json();
+            throw new Error(errorMessage.message || "Unknown error occurred");
+        }
+
+        return response.json();
+    }
+
     // Attach event listeners directly to the forms
-    const loginForm = document.getElementById('loginForm');
+    const loginForm = document.getElementById("loginForm");
 
-
-    if (loginForm) loginForm.addEventListener('submit', submitVoucherCode);
+    if (loginForm) loginForm.addEventListener("submit", submitVoucherCode);
 </script>
 
 <div id="loading" style="display: none;">
