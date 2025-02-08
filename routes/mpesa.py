@@ -1,4 +1,6 @@
 import re
+import time
+
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy.exc import SQLAlchemyError
@@ -44,6 +46,7 @@ def buy_voucher():
 
         password, timestamp = get_password_and_timestamp()
         access_token = get_access_token()
+        current_app.logger.info(f"Access Token: {access_token}")
 
         payload = {
             "BusinessShortCode": SHORTCODE,
@@ -58,42 +61,40 @@ def buy_voucher():
             "AccountReference": f"Voucher_{voucher_data}",
             "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
         }
+        current_app.logger.info(f"STK Push Payload: {payload}")
 
-        headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.post(STK_PUSH_URL, headers=headers, json=payload, timeout=30)
+        # Send request with timeout
+        start_time = time.time()
+        response = requests.post(STK_PUSH_URL, headers={"Authorization": f"Bearer {access_token}"}, json=payload,
+                                 timeout=30)
+        end_time = time.time()
 
-        current_app.logger.info(f"STK Push Response JSON: {response.json()}")
+        current_app.logger.info(f"STK Push completed in {end_time - start_time} seconds")
 
-        if response.status_code == 200:
-            stk_response = response.json()
-            if stk_response.get("ResponseCode") != "0":
-                error_message = stk_response.get("errorMessage", "Unknown error occurred.")
-                current_app.logger.error(f"STK Push failed: {error_message}")
-                return jsonify({"status": "error", "message": f"STK Push failed: {error_message}"}), 400
+        # Handle response
+        try:
+            json_response = response.json()
+        except ValueError:
+            current_app.logger.error(f"Invalid JSON response: {response.text}")
+            return jsonify({"status": "error", "message": "Invalid response from M-Pesa"}), 500
 
-            try:
-                transaction = PaymentTransaction(
-                    checkout_request_id=stk_response.get("CheckoutRequestID"),
-                    merchant_request_id=stk_response.get("MerchantRequestID"),
-                    phone_number=phone_number,
-                    amount=float(amount),
-                    status="PENDING",
-                    description=f"Voucher for {voucher_data} ({voucher_duration})"
-                )
-                db.session.add(transaction)
-                current_app.logger.info(f"Transaction to be saved: {transaction}")
-
-                db.session.commit()
-                current_app.logger.info(
-                    f"Transaction saved: ID {transaction.id}, CheckoutRequestID {transaction.checkout_request_id}")
-                return jsonify({"status": "success", "stk_response": stk_response}), 200
-            except SQLAlchemyError as db_ex:
-                db.session.rollback()
-                current_app.logger.error(f"Database error: {db_ex}")
-                return jsonify({"status": "error", "message": "Database error occurred"}), 500
-
-        current_app.logger.error(f"Unexpected response from STK Push: {response.text}")
-        return jsonify({"status": "error", "message": "Failed to process STK Push"}), 500
+        if response.status_code == 200 and json_response.get("ResponseCode") == "0":
+            transaction = PaymentTransaction(
+                checkout_request_id=json_response.get("CheckoutRequestID"),
+                merchant_request_id=json_response.get("MerchantRequestID"),
+                phone_number=phone_number,
+                amount=float(amount),
+                status="PENDING",
+                description=f"Voucher for {voucher_data} ({voucher_duration})"
+            )
+            db.session.add(transaction)
+            db.session.commit()
+            current_app.logger.info(f"Transaction saved: ID {transaction.id}")
+            return jsonify({"status": "success", "stk_response": json_response}), 200
+        else:
+            error_message = json_response.get("errorMessage", "Unknown error")
+            current_app.logger.error(f"STK Push failed: {error_message}")
+            return jsonify({"status": "error", "message": error_message}), 400
 
     except requests.RequestException as req_ex:
         current_app.logger.error(f"RequestException during STK Push: {req_ex}")
@@ -103,7 +104,8 @@ def buy_voucher():
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
-@mpesa_bp.route('/mpesa_callback', methods=['POST'])
+
+@mpesa_bp.route('/mpesa/mpesa-callback', methods=['POST'])
 def mpesa_callback():
     import time
     start_time = time.time()
