@@ -1,6 +1,5 @@
 import re
 import time
-
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy.exc import SQLAlchemyError
@@ -105,56 +104,14 @@ def buy_voucher():
 
 
 
-@mpesa_bp.route('/mpesa/mpesa-callback', methods=['POST'])
+@mpesa_bp.route('/mpesa_callback', methods=['POST'])
 def mpesa_callback():
-    import time
-    start_time = time.time()
-    current_app.logger.info(f"Callback started at: {start_time}")
+    """Handle callbacks from MPesa."""
+    callback_data = request.get_json()
+    current_app.logger.info(f"MPesa Callback Received: {callback_data}")
 
-    try:
-        raw_data = request.data
-        current_app.logger.info(f"Raw data received: {raw_data}")
-
-        callback_data = request.get_json()
-        current_app.logger.info(f"Parsed JSON payload at: {time.time()}")
-
-        if not callback_data:
-            current_app.logger.error(f"Invalid JSON payload: {callback_data}")
-            return jsonify({"error": "Invalid payload"}), 400
-
-        merchant_request_id = callback_data.get('MerchantRequestID')
-        checkout_request_id = callback_data.get('CheckoutRequestID')
-
-        if not merchant_request_id or not checkout_request_id:
-            current_app.logger.error("Missing required fields")
-            return jsonify({"error": "Missing required fields"}), 400
-
-        current_app.logger.info(f"Fetching transaction from database at: {time.time()}")
-        transaction = PaymentTransaction.query.filter_by(
-            checkout_request_id=checkout_request_id,
-            merchant_request_id=merchant_request_id
-        ).first()
-
-        if not transaction:
-            current_app.logger.error("Transaction not found")
-            return jsonify({"error": "Transaction not found"}), 404
-
-        # Update transaction
-        transaction.receipt_number = callback_data.get('ReceiptNumber')
-        transaction.status = 'SUCCESS' if callback_data.get('ResultCode', 1) == 0 else 'FAILED'
-        current_app.logger.info(f"Updating transaction at: {time.time()}")
-
-        # Commit changes
-        db.session.commit()
-        end_time = time.time()
-        current_app.logger.info(f"Transaction updated and committed at: {end_time}")
-        current_app.logger.info(f"Total processing time: {end_time - start_time} seconds")
-
-        return jsonify({"message": "Transaction updated successfully"}), 200
-
-    except Exception as e:
-        current_app.logger.error(f"Exception occurred: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+    # Respond with ResultCode to MPesa
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
 
 
 
