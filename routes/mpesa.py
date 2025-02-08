@@ -103,16 +103,46 @@ def buy_voucher():
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
-
 @mpesa_bp.route('/mpesa_callback', methods=['POST'])
 def mpesa_callback():
     """Handle callbacks from MPesa."""
     callback_data = request.get_json()
     current_app.logger.info(f"MPesa Callback Received: {callback_data}")
 
-    # Respond with ResultCode to MPesa
-    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
+    try:
+        # Extract necessary fields
+        stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
+        transaction_id = stk_callback.get("CheckoutRequestID")
+        result_code = stk_callback.get("ResultCode")
+        result_desc = stk_callback.get("ResultDesc")
 
+        if not transaction_id:
+            current_app.logger.error("Transaction ID not found in callback data.")
+            return jsonify({"ResultCode": 1, "ResultDesc": "Transaction ID missing"}), 400
+
+        # Store callback in database
+        transaction = PaymentTransaction.query.filter_by(checkout_request_id=transaction_id).first()
+
+        if not transaction:
+            transaction = PaymentTransaction(
+                checkout_request_id=transaction_id,
+                status="PENDING",  # Default to pending
+                description="MPesa callback received"
+            )
+            db.session.add(transaction)
+
+        transaction.status = "SUCCESS" if result_code == 0 else "FAILED"
+        transaction.description = result_desc
+        db.session.commit()
+
+        current_app.logger.info(f"Transaction {transaction_id} updated in the database.")
+
+    except Exception as e:
+        current_app.logger.exception(f"Error processing MPesa callback: {str(e)}")
+        db.session.rollback()
+        return jsonify({"ResultCode": 1, "ResultDesc": "Internal server error"}), 500
+
+    return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
 
 
 @mpesa_bp.route('/validate/<receipt_number>', methods=['GET'])
