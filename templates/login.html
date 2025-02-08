@@ -11,47 +11,46 @@
     <div class="container">
         <h1 class="title">Enter your Voucher Code</h1>
         <form id="loginForm">
-    <label for="voucher">Enter Voucher Code:</label>
-    <input type="text" id="voucher" name="voucher" placeholder="Voucher Code" required>
-    <button type="submit" id="loginButton">Login</button>
+            <label for="receipt_number">Enter Voucher Code:</label>
+            <input type="text" id="receipt_number" name="receipt_number" placeholder="Voucher Code" required>
+            <button type="submit" id="loginButton">Login</button>
         </form>
         <p class="paragraph">Don't have a voucher? <a href="/buy" class="link">Buy one here</a></p>
     </div>
 
+
 <script>
-document.getElementById("loginForm").addEventListener("submit", async function(event) {
-    event.preventDefault();
+async function submitVoucherCode(event, receipt_number) {
+        event.preventDefault();
+        const voucherCode = document.getElementById(receipt_number).value.trim();
 
-    const voucherCode = document.getElementById("voucher").value.trim();
-
-    if (!voucherCode) {
-        alert("Please enter a valid voucher code.");
-        return;
-    }
-
-    const payload = { transaction_reference: voucherCode };
-
-    try {
-        const response = await fetch("/mpesa/validate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            alert("Login successful!");
-            window.location.href = "/success"; // Redirect to success page
-        } else {
-            alert("Error: " + result.error);
+        if (!voucherCode) {
+            alert("Please enter a voucher code.");
+            return;
         }
-    } catch (error) {
-        alert("Network Error: " + error.message);
-    }
-});
-</script>
 
+        try {
+            const response = await fetch("/mpesa/validate_voucher", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ receipt_number: voucherCode })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert("Login successful!");
+                window.location.href = "/success";
+            } else {
+                alert("Error: " + (result.message || "Validation failed."));
+            }
+        } catch (error) {
+            alert("An error occurred: " + error.message);
+        }
+    }
+
+    document.getElementById("loginForm").addEventListener("submit", submitVoucherCode);
+    </script>
 </body>
 <footer>
     <p><span>

@@ -57,20 +57,29 @@
         <!-- Login Form -->
         <h1>Login to Fid_Dawg Wi-Fi</h1>
         <form id="loginForm">
-            <label for="transaction_reference">Enter Voucher Code:</label>
-            <input type="text" id="transaction_reference" name="transaction_reference" placeholder="Voucher Code " required>
-            <button type="submit" id="loginButton" disabled>Login</button>
+            <label for="receipt_number">Enter Voucher Code:</label>
+            <input type="text" id="receipt_number" name="receipt_number" placeholder="Voucher Code" required>
+            <button type="submit" id="loginButton">Login</button>
         </form>
     </div>
 
 <script>
+    /**
+     * Buy voucher logic
+     */
     function buyVoucher(amount, voucher_data, voucher_duration) {
+        // Show phone input section
         document.getElementById('phone-input-section').style.display = 'block';
+
+        // Assign values for voucher purchase
         document.getElementById('voucherAmount').value = amount;
         document.getElementById('voucherData').value = voucher_data;
         document.getElementById('voucherDuration').value = voucher_duration;
     }
 
+    /**
+     * Handle phone number submission for voucher purchase
+     */
     async function submitPhoneNumber(event) {
         event.preventDefault();
 
@@ -80,6 +89,7 @@
         const voucherDuration = document.getElementById("voucherDuration").value;
         const userType = document.getElementById("userType").value;
 
+        // Validation
         if (!phoneNumber.match(/^\+254(7|1)[0-9]{8}$/)) {
             alert("Enter a valid phone number.");
             return;
@@ -94,14 +104,16 @@
         };
 
         try {
+            // Send request to initiate payment
             const result = await fetch("/mpesa/buy-voucher", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             }).then(res => res.json());
 
-            alert("Payment initiated! Enter your M-Pesa pin...");
+            alert("Payment initiated! Enter your M-Pesa PIN now...");
 
+            // If checkout ID is received, poll for payment status
             if (result.checkout_request_id) {
                 await pollTransactionStatus(payload.phone_number, result.checkout_request_id);
             }
@@ -110,15 +122,30 @@
         }
     }
 
-    function pollTransactionStatus(phoneNumber, requestId) {
+    /**
+     * Poll transaction status from the server
+     */
+    async function pollTransactionStatus(phoneNumber, requestId) {
         const interval = setInterval(async () => {
             try {
                 const response = await fetch("/mpesa/payment-status?phone=" + phoneNumber + "&request_id=" + requestId);
                 const data = await response.json();
 
+                // Handle success and autofill voucher code
                 if (data.status === "SUCCESS") {
                     clearInterval(interval);
-                    window.location.href = "/success";
+
+                    // Autofill voucher code in the login form
+                    if (data.receipt_number) {
+                        document.getElementById("receipt_number").value = data.receipt_number;
+
+                        // Optionally focus on the voucher code input for quick login
+                        document.getElementById("receipt_number").focus();
+                        alert("Payment successful! Your voucher code has been filled into the login form.");
+                    }
+
+                    // Redirect to success page (optional)
+                    // window.location.href = "/success";
                 } else if (data.status === "FAILED") {
                     clearInterval(interval);
                     alert("Payment Failed: " + data.message);
@@ -127,12 +154,15 @@
                 console.error("Error checking payment status:", error);
                 clearInterval(interval);
             }
-        }, 5000);
+        }, 5000); // Poll every 5 seconds
     }
 
-    async function submitVoucherCode(event) {
+    /**
+     * Handle login form submission
+     */
+    document.getElementById("loginForm").addEventListener("submit", async function(event) {
         event.preventDefault();
-        const voucherCode = document.getElementById("transaction_reference").value.trim();
+        const voucherCode = document.getElementById("receipt_number").value.trim();
 
         if (!voucherCode) {
             alert("Please enter a voucher code.");
@@ -140,7 +170,7 @@
         }
 
         try {
-            const response = await fetch("/validate_voucher", {
+            const response = await fetch("/mpesa/validate_voucher", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ receipt_number: voucherCode })
@@ -157,10 +187,8 @@
         } catch (error) {
             alert("An error occurred: " + error.message);
         }
-    }
-
-    document.getElementById("loginForm").addEventListener("submit", submitVoucherCode);
-    </script>
+    });
+</script>
 
 
 <div id="loading" style="display: none;">

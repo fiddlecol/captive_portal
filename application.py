@@ -1,5 +1,6 @@
 from flask import Flask, render_template
 from database.models import db
+from routes import voucher_bp, client_bp
 from routes.mpesa import mpesa_bp
 import os
 from flask_migrate import Migrate
@@ -22,7 +23,8 @@ def create_app():
 
     # Register routes/blueprints
     app.register_blueprint(mpesa_bp, url_prefix="/mpesa")
-
+    app.register_blueprint(client_bp, url_prefix='/client')
+    app.register_blueprint(voucher_bp, url_prefix='/voucher')
 
     # Create database tables (if not already created)
     with app.app_context():

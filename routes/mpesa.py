@@ -1,13 +1,13 @@
 import re
 import time
-import requests
-from flask import Blueprint, request, jsonify, current_app
-from sqlalchemy.exc import SQLAlchemyError
-from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
-from database.models import PaymentTransaction, db, Voucher, Client
-from utilities import get_access_token, get_password_and_timestamp
 from datetime import datetime, timedelta
 
+import requests
+from flask import Blueprint, request, jsonify, current_app
+
+from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
+from database.models import PaymentTransaction, db, Voucher
+from utilities import get_access_token, get_password_and_timestamp
 
 mpesa_bp = Blueprint("mpesa", __name__)
 
@@ -211,3 +211,34 @@ def validate_voucher():
         db.session.rollback()
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
+
+@mpesa_bp.route('/payment-status', methods=['GET'])
+def payment_status():
+    """Handle payment status query."""
+    phone = request.args.get('phone')  # Get phone query parameter
+    request_id = request.args.get('request_id')  # Get request_id query parameter
+
+    # Validate input parameters
+    if not phone or not request_id:
+        return jsonify({"status": "error", "message": "Missing required query parameters: phone or request_id"}), 400
+
+    try:
+        # Query the PaymentTransaction table for status
+        transaction = PaymentTransaction.query.filter_by(phone_number=phone, checkout_request_id=request_id).first()
+
+        if not transaction:
+            return jsonify({"status": "error", "message": "Transaction not found."}), 404
+
+        # Return transaction status
+        return jsonify({
+            "status": "success",
+            "transaction_status": transaction.status,
+            "amount": transaction.amount,
+            "description": transaction.description,
+            "receipt_number": transaction.receipt_number,
+            "timestamp": transaction.updated_at.isoformat() if transaction.updated_at else None
+        }), 200
+
+    except Exception as e:
+        current_app.logger.exception(f"Error fetching payment status: {str(e)}")
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
