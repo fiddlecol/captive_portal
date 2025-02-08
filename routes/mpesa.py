@@ -120,22 +120,32 @@ def mpesa_callback():
             current_app.logger.error("Transaction ID not found in callback data.")
             return jsonify({"ResultCode": 1, "ResultDesc": "Transaction ID missing"}), 400
 
-        # Store callback in database
+        # Extract callback metadata
+        metadata_items = stk_callback.get("CallbackMetadata", {}).get("Item", [])
+        metadata_dict = {item["Name"]: item["Value"] for item in metadata_items if "Name" in item and "Value" in item}
+
+        # Extract receipt number from metadata
+        receipt_number = metadata_dict.get("MpesaReceiptNumber")
+
+        # Store callback in the database
         transaction = PaymentTransaction.query.filter_by(checkout_request_id=transaction_id).first()
 
         if not transaction:
             transaction = PaymentTransaction(
                 checkout_request_id=transaction_id,
                 status="PENDING",  # Default to pending
-                description="MPesa callback received"
+                description="MPesa callback received",
+                receipt_number=receipt_number  # Store receipt number
             )
             db.session.add(transaction)
+        else:
+            transaction.receipt_number = receipt_number  # Update receipt number if transaction exists
 
         transaction.status = "SUCCESS" if result_code == 0 else "FAILED"
         transaction.description = result_desc
         db.session.commit()
 
-        current_app.logger.info(f"Transaction {transaction_id} updated in the database.")
+        current_app.logger.info(f"Transaction {transaction_id} updated with Receipt: {receipt_number}")
 
     except Exception as e:
         current_app.logger.exception(f"Error processing MPesa callback: {str(e)}")
