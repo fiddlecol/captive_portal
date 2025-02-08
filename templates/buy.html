@@ -63,228 +63,105 @@
         </form>
     </div>
 
-    <script>
-    /**
-     * Display voucher form and pre-fill its data
-     */
+<script>
     function buyVoucher(amount, voucher_data, voucher_duration) {
-        console.log("Buying voucher with:", { amount, voucher_data, voucher_duration });
-
-        // Ensure phone input section is visible
         document.getElementById('phone-input-section').style.display = 'block';
-
-        // Assign values explicitly
-        document.getElementById('voucherAmount').value = amount.toString();
+        document.getElementById('voucherAmount').value = amount;
         document.getElementById('voucherData').value = voucher_data;
         document.getElementById('voucherDuration').value = voucher_duration;
-
-        // Debugging logs to verify correct values
-        console.log("Set values:", {
-            voucherAmount: document.getElementById('voucherAmount').value,
-            voucherData: document.getElementById('voucherData').value,
-            voucherDuration: document.getElementById('voucherDuration').value
-        });
     }
 
-    /**
-     * Utility: Sanitize input to remove unnecessary characters
-     */
-    function sanitizeInput(inputValue) {
-        return inputValue.replace(/[^a-zA-Z0-9+:\s]/g, "").trim();
-    }
+    async function submitPhoneNumber(event) {
+        event.preventDefault();
 
-    /**
-     * Common Fetch Utility
-     */
-    async function postRequest(url, payload) {
-        try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
+        const phoneNumber = document.getElementById("phoneNumber").value.trim();
+        const voucherAmount = document.getElementById("voucherAmount").value;
+        const voucherData = document.getElementById("voucherData").value;
+        const voucherDuration = document.getElementById("voucherDuration").value;
+        const userType = document.getElementById("userType").value;
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "An error occurred.");
-            }
-
-            return data;
-        } catch (err) {
-            console.error("Request Failed:", err.message);
-            alert("Error: " + err.message);
-            throw err;
-        }
-    }
-
-    /**
-     * Handle phone number submission for voucher purchase
-     */
-    /**
- * Handle phone number submission for voucher purchase
- */
-async function submitPhoneNumber(event) {
-    console.log("submitPhoneNumber triggered");
-    event.preventDefault();
-
-    const phoneNumberInput = document.getElementById("phoneNumber").value;
-    const voucherAmount = document.getElementById("voucherAmount").value;
-    const voucherData = document.getElementById("voucherData").value;
-    const voucherDuration = document.getElementById("voucherDuration").value;
-    const userType = document.getElementById("userType").value;
-
-    const phoneNumber = sanitizeInput(phoneNumberInput);
-
-    // Validate input
-    if (!phoneNumber.match(/^\+254(7|1)[0-9]{8}$/)) {
-        alert("Please enter a valid phone number in the format +254XXXXXXXXX.");
-        return;
-    }
-    if (!voucherAmount || !voucherData || !voucherDuration) {
-        alert("Please select a valid voucher plan before submitting.");
-        return;
-    }
-
-    const payload = {
-        phone_number: phoneNumber.replace("+", ""),
-        amount: parseInt(voucherAmount, 10),
-        voucher_data: sanitizeInput(voucherData),
-        voucher_duration: sanitizeInput(voucherDuration),
-        user_type: sanitizeInput(userType),
-    };
-
-    console.log("Request Payload:", payload); // Log payload for debugging
-
-    const submitButton = document.querySelector("button[type='submit']");
-    const loadingElement = document.getElementById("loading");
-
-    // Disable UI elements to prevent multiple submissions
-    if (submitButton) submitButton.disabled = true;
-    window.requestSent = true;
-    loadingElement.style.display = "block";
-
-    try {
-        // Send the purchase request
-        const result = await postRequest("/mpesa/buy-voucher", payload);
-        alert("Payment initiated!Enter your Mpesa pin... Waiting for confirmation...");
-
-        // Start polling payment status
-        if (result.checkout_request_id) {
-            await pollTransactionStatus(payload.phone_number, result.checkout_request_id);
-        }
-    } catch (error) {
-        alert("Error: " + error.message);
-    } finally {
-        // Reset UI state
-        window.requestSent = false;
-        if (submitButton) submitButton.disabled = false;
-        loadingElement.style.display = "none";
-    }
-}
-
-const pollPaymentStatus = () => {
-    const interval = setInterval(() => {
-        fetch("/mpesa/payment-status") // Adjust this route if needed
-            .then((response) => response.json())
-            .then((data) => {
-                console.log("Payment Status:", data);
-
-                if (data.status === "SUCCESS") {
-                    clearInterval(interval); // Stop polling
-                    console.log("Payment Successful:", data);
-                    window.location.href = "/success"; // Redirect to success page
-                } else if (data.status === "FAILED") {
-                    clearInterval(interval); // Stop polling if payment failed
-                    console.error("Payment Failed: ", data.message);
-                }
-            })
-            .catch((err) => {
-                console.error("Error checking payment status:", err);
-                clearInterval(interval); // Stop polling on error
-            });
-    }, 5000); // Poll every 5 seconds
-};
-    /**
-     * Handle voucher login
-     */
-
-    async function submitVoucherCode(event) {
-        event.preventDefault(); // Prevent default form submission behavior
-
-        // Retrieve the voucher code entered by the user
-        const voucherInput = document.getElementById("voucherCode");
-        const autoLoginCheckbox = document.getElementById("autoLogin");
-
-        // Check if the voucher input exists
-        if (!voucherInput) {
-            alert("Cannot locate the voucher input field.");
+        if (!phoneNumber.match(/^\+254(7|1)[0-9]{8}$/)) {
+            alert("Enter a valid phone number.");
             return;
         }
 
-        const voucherCode = voucherInput.value.trim();
+        const payload = {
+            phone_number: phoneNumber.replace("+", ""),
+            amount: parseInt(voucherAmount, 10),
+            voucher_data: voucherData,
+            voucher_duration: voucherDuration,
+            user_type: userType
+        };
 
-        // Validate that the voucher code is not empty
+        try {
+            const result = await fetch("/mpesa/buy-voucher", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            }).then(res => res.json());
+
+            alert("Payment initiated! Enter your M-Pesa pin...");
+
+            if (result.checkout_request_id) {
+                await pollTransactionStatus(payload.phone_number, result.checkout_request_id);
+            }
+        } catch (error) {
+            alert("Error: " + error.message);
+        }
+    }
+
+    function pollTransactionStatus(phoneNumber, requestId) {
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch("/mpesa/payment-status?phone=" + phoneNumber + "&request_id=" + requestId);
+                const data = await response.json();
+
+                if (data.status === "SUCCESS") {
+                    clearInterval(interval);
+                    window.location.href = "/success";
+                } else if (data.status === "FAILED") {
+                    clearInterval(interval);
+                    alert("Payment Failed: " + data.message);
+                }
+            } catch (error) {
+                console.error("Error checking payment status:", error);
+                clearInterval(interval);
+            }
+        }, 5000);
+    }
+
+    async function submitVoucherCode(event) {
+        event.preventDefault();
+        const voucherCode = document.getElementById("transaction_reference").value.trim();
+
         if (!voucherCode) {
             alert("Please enter a voucher code.");
             return;
         }
 
-        // Build the POST payload
-        const payload = {
-            receipt_number: voucherCode,
-            auto_login: autoLoginCheckbox ? autoLoginCheckbox.checked : false, // Pass auto-login preference
-        };
-
         try {
-            // Send the POST Request
-            const result = await postRequest("/mpesa/validate", payload);
+            const response = await fetch("/validate_voucher", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ receipt_number: voucherCode })
+            });
+
+            const result = await response.json();
 
             if (result.success) {
-                if (result.auth_method === "auto_login") {
-                    alert("Login successful! Redirecting...");
-                    window.location.href = "/success"; // Redirect to success page
-                } else if (result.auth_method === "manual_login") {
-                    alert("Voucher validated successfully! You may now manually log in.");
-                }
-
-                // Optionally, pre-fill the voucher input field if valid
-                if (result.voucher_code) {
-                    voucherInput.value = result.voucher_code;
-                }
+                alert("Login successful!");
+                window.location.href = "/success";
             } else {
-                // Handle backend validation failure
                 alert("Error: " + (result.message || "Validation failed."));
             }
         } catch (error) {
-            // Handle request errors
             alert("An error occurred: " + error.message);
         }
     }
 
-    // Utility function to send POST requests
-    async function postRequest(url, payload) {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-        });
+    document.getElementById("loginForm").addEventListener("submit", submitVoucherCode);
+    </script>
 
-        if (!response.ok) {
-            const errorMessage = await response.json();
-            throw new Error(errorMessage.message || "Unknown error occurred");
-        }
-
-        return response.json();
-    }
-
-    // Attach event listeners directly to the forms
-    const loginForm = document.getElementById("loginForm");
-
-    if (loginForm) loginForm.addEventListener("submit", submitVoucherCode);
-</script>
 
 <div id="loading" style="display: none;">
     <p>Processing your request, please wait...</p>

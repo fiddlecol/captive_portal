@@ -6,6 +6,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
 from database.models import PaymentTransaction, db, Voucher, Client
 from utilities import get_access_token, get_password_and_timestamp
+from datetime import datetime, timedelta
+
 
 mpesa_bp = Blueprint("mpesa", __name__)
 
@@ -167,8 +169,6 @@ def mpesa_callback():
     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
 
 
-from datetime import datetime, timedelta
-
 @mpesa_bp.route('/validate_voucher', methods=['POST'])
 def validate_voucher():
     """Validate a receipt number and use it as a voucher code."""
@@ -181,13 +181,11 @@ def validate_voucher():
     try:
         # Find transaction by receipt number
         transaction = PaymentTransaction.query.filter_by(receipt_number=receipt_number, status="SUCCESS").first()
-
         if not transaction:
             return jsonify({"status": "error", "message": "Invalid or unsuccessful transaction"}), 404
 
         # Check if voucher exists
         voucher = Voucher.query.filter_by(code=receipt_number).first()
-
         if not voucher:
             return jsonify({"status": "error", "message": "Voucher not found"}), 404
 
@@ -195,17 +193,21 @@ def validate_voucher():
         if voucher.is_used:
             if voucher.expiry_time and voucher.expiry_time > datetime.utcnow():
                 return jsonify({"status": "success", "message": "Reconnected to active session"}), 200
-            else:
-                return jsonify({"status": "error", "message": "Voucher expired"}), 400
+            return jsonify({"status": "error", "message": "Voucher expired"}), 400
 
         # Mark voucher as used and set expiry time (e.g., 1 hour from activation)
         voucher.is_used = True
         voucher.expiry_time = datetime.utcnow() + timedelta(hours=1)  # Adjust duration as needed
         db.session.commit()
 
-        return jsonify({"status": "success", "message": "Voucher validated successfully", "expiry_time": voucher.expiry_time}), 200
+        return jsonify({
+            "status": "success",
+            "message": "Voucher validated successfully",
+            "expiry_time": voucher.expiry_time.isoformat()
+        }), 200
 
     except Exception as e:
         current_app.logger.exception(f"Error validating voucher: {str(e)}")
         db.session.rollback()
         return jsonify({"status": "error", "message": "Internal server error"}), 500
+
