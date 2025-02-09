@@ -214,12 +214,11 @@ def validate_voucher():
 
 @mpesa_bp.route('/payment-status', methods=['GET'])
 def payment_status():
-    """Handle payment status query."""
     phone = request.args.get('phone')  # Get phone query parameter
     request_id = request.args.get('request_id')  # Get request_id query parameter
 
-    # Validate input parameters
     if not phone or not request_id:
+        current_app.logger.error("Missing required query parameters: phone or request_id.")
         return jsonify({"status": "error", "message": "Missing required query parameters: phone or request_id"}), 400
 
     try:
@@ -227,9 +226,11 @@ def payment_status():
         transaction = PaymentTransaction.query.filter_by(phone_number=phone, checkout_request_id=request_id).first()
 
         if not transaction:
+            current_app.logger.error(f"Transaction not found for Phone: {phone}, Request ID: {request_id}")
             return jsonify({"status": "error", "message": "Transaction not found."}), 404
 
-        # Return transaction status
+        # Log and return transaction details
+        current_app.logger.info(f"Found transaction: {transaction.checkout_request_id}, Status: {transaction.status}")
         return jsonify({
             "status": "success",
             "transaction_status": transaction.status,
@@ -242,3 +243,4 @@ def payment_status():
     except Exception as e:
         current_app.logger.exception(f"Error fetching payment status: {str(e)}")
         return jsonify({"status": "error", "message": "Internal server error"}), 500
+
