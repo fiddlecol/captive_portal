@@ -11,7 +11,7 @@ Jinja2~=3.1.3
 MarkupSafe~=2.1.5
 python-dotenv==1.0.1
 requests==2.32.3
-SQLAlchemy
+SQLAlchemy~=2.0.37
 typing_extensions==4.12.2
 urllib3~=2.2.3
 Werkzeug==3.1.3
@@ -38,3 +38,5 @@ importlib_metadata~=8.5.0
 pytest~=8.3.4
 psycopg2~=2.9.10
 Routes~=2.5.1
+alembic~=1.14.1
+Flask-Migrate~=4.1.0

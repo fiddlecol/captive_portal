@@ -1,10 +1,8 @@
 import re
 import time
 from datetime import datetime, timedelta
-
 import requests
 from flask import Blueprint, request, jsonify, current_app
-
 from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
 from database.models import PaymentTransaction, db, Voucher
 from utilities import get_access_token, get_password_and_timestamp
@@ -171,7 +169,6 @@ def mpesa_callback():
 
 @mpesa_bp.route('/validate_voucher', methods=['POST'])
 def validate_voucher():
-    """Validate a receipt number and use it as a voucher code."""
     data = request.get_json()
     receipt_number = data.get("receipt_number")
 
@@ -179,25 +176,24 @@ def validate_voucher():
         return jsonify({"status": "error", "message": "Receipt number is required"}), 400
 
     try:
-        # Find transaction by receipt number
+        # Transaction validation
         transaction = PaymentTransaction.query.filter_by(receipt_number=receipt_number, status="SUCCESS").first()
         if not transaction:
             return jsonify({"status": "error", "message": "Invalid or unsuccessful transaction"}), 404
 
-        # Check if voucher exists
+        # Voucher validation
         voucher = Voucher.query.filter_by(code=receipt_number).first()
         if not voucher:
             return jsonify({"status": "error", "message": "Voucher not found"}), 404
 
-        # Check if the voucher was already used but still active
         if voucher.is_used:
             if voucher.expiry_time and voucher.expiry_time > datetime.utcnow():
                 return jsonify({"status": "success", "message": "Reconnected to active session"}), 200
             return jsonify({"status": "error", "message": "Voucher expired"}), 400
 
-        # Mark voucher as used and set expiry time (e.g., 1 hour from activation)
+        # Update voucher
         voucher.is_used = True
-        voucher.expiry_time = datetime.utcnow() + timedelta(hours=1)  # Adjust duration as needed
+        voucher.expiry_time = datetime.utcnow() + timedelta(hours=1)
         db.session.commit()
 
         return jsonify({

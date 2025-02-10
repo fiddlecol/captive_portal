@@ -29,6 +29,7 @@ def list_vouchers():
                 "is_used": voucher.is_used,
                 "created_at": voucher.created_at.isoformat() if voucher.created_at else None,
                 "price": voucher.price
+
             }
             for voucher in paginated_vouchers.items
         ]

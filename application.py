@@ -4,8 +4,7 @@ from routes import voucher_bp, client_bp
 from routes.mpesa import mpesa_bp
 import os
 from flask_migrate import Migrate
-# Remove this line if unused
-from database.models import PaymentTransaction
+
 
 
 

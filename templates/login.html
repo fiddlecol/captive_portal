@@ -15,17 +15,20 @@
             <input type="text" id="receipt_number" name="receipt_number" placeholder="Voucher Code" required>
             <button type="submit" id="loginButton">Login</button>
         </form>
+        <p id="voucherMessage" style="color: red;"></p>
         <p class="paragraph">Don't have a voucher? <a href="/buy" class="link">Buy one here</a></p>
     </div>
 
 
 <script>
-async function submitVoucherCode(event, receipt_number) {
+async function submitVoucherCode(event) {
         event.preventDefault();
-        const voucherCode = document.getElementById(receipt_number).value.trim();
+        const voucherInput = document.getElementById("receipt_number");
+        const voucherCode = voucherInput.value.trim();
 
         if (!voucherCode) {
-            alert("Please enter a voucher code.");
+            document.getElementById("voucherMessage").textContent = "Please enter a voucher code.";
+            voucherInput.focus();
             return;
         }
 
@@ -36,20 +39,28 @@ async function submitVoucherCode(event, receipt_number) {
                 body: JSON.stringify({ receipt_number: voucherCode })
             });
 
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.statusText}`);
+            }
+
             const result = await response.json();
 
             if (result.success) {
-                alert("Login successful!");
+                document.getElementById("voucherMessage").textContent = "";
                 window.location.href = "/success";
             } else {
-                alert("Error: " + (result.message || "Validation failed."));
+                document.getElementById("voucherMessage").textContent =
+                    result.message || "Voucher validation failed. Please try again.";
+                voucherInput.focus();
             }
         } catch (error) {
-            alert("An error occurred: " + error.message);
+            document.getElementById("voucherMessage").textContent =
+                `An error occurred: ${error.message}`;
+            voucherInput.focus();
         }
     }
 
-    document.getElementById("loginForm").addEventListener("submit", submitVoucherCode);
+    document.getElementById("loginForm").addEventListener("submit", (event) => submitVoucherCode(event));
     </script>
 </body>
 <footer>
