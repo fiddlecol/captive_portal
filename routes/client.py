@@ -1,42 +1,42 @@
-from flask import Blueprint, jsonify, request
-from database.models import Client
-from flask_sqlalchemy import SQLAlchemy
-from flask import current_app
+import traceback
+from database.models import Client  # Import Client model
+from flask import request, jsonify, current_app, Blueprint
 
-client_bp = Blueprint("client", __name__)
-db = SQLAlchemy()
-
+client_bp = Blueprint('client', __name__)
 
 @client_bp.route("/list", methods=["GET"])
 def list_clients():
     """Fetch and list all clients with pagination, filtering, and sorting."""
     try:
         # Retrieve query parameters for pagination and filtering
-        page = int(request.args.get("page", 1))  # Default page 1
+        page = int(request.args.get("page", 1))  # Default page is 1
         per_page = int(request.args.get("per_page", 10))  # Default 10 items per page
         mac_address_filter = request.args.get("mac_address", None)
-        voucher_used_filter = request.args.get("voucher_used",
-                                               None)  # True/False to filter clients based on voucher usage
+        voucher_used_filter = request.args.get("voucher_used", None)  # Voucher usage filter (True or False)
+
+        print(
+            f"Parameters - page: {page}, per_page: {per_page}, mac_address: {mac_address_filter}, voucher_used: {voucher_used_filter}")
 
         # Base query
         query = Client.query
 
-        # Optional filter: Filter by mac_address (exact match)
+        # Optional filter: Filter by mac_address
         if mac_address_filter:
             query = query.filter_by(mac_address=mac_address_filter)
 
         # Optional filter: Filter by voucher usage
-        if voucher_used_filter is not None:  # True or False (string comparison)
+        if voucher_used_filter is not None:
             is_used = voucher_used_filter.lower() == "true"
+            print(f"Filtering by voucher usage: {is_used}")
             query = query.join(Client.voucher).filter_by(is_used=is_used)
 
-        # Optional sorting (default sorting by connected_at, most recent first)
+        # Optional sorting (default: order by connected_at descending)
         query = query.order_by(Client.connected_at.desc())
 
-        # Paginating the results
+        # Paginate
         paginated_clients = query.paginate(page=page, per_page=per_page)
 
-        # Format the response
+        # Format response
         client_list = [
             {
                 "id": client.id,
@@ -57,12 +57,8 @@ def list_clients():
             "pages": paginated_clients.pages
         }), 200
 
-    except ValueError as value_error:
-        # Handle parameter parsing errors (e.g., invalid page or per_page values)
-        current_app.logger.error(f"Parameter parsing error: {str(value_error)}")
-        return jsonify({"status": "error", "message": "Invalid query parameters"}), 400
-
     except Exception as e:
-        # Handle unexpected errors
+        # Exception logging with traceback
+        traceback.print_exc()
         current_app.logger.exception(f"Unexpected error: {str(e)}")
         return jsonify({"status": "error", "message": "Internal server error"}), 500

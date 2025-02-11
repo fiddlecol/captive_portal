@@ -22,7 +22,8 @@ class Client(db.Model):
     voucher_id = db.Column(db.Integer, db.ForeignKey('voucher.id'))
     connected_at = db.Column(db.DateTime(timezone=True), default=db.func.now())
 
-    voucher = db.relationship("Voucher", backref="clients")
+    voucher = db.relationship("Voucher", backref="client")
+
 
 class PaymentTransaction(db.Model):
     __tablename__ = 'payment_transactions'
@@ -36,6 +37,7 @@ class PaymentTransaction(db.Model):
     phone_number = db.Column(db.String(15), nullable=True)
     description = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=db.func.now())
+
 
 # Explicitly expose the models for import
 __all__ = ["Voucher", "Client", "PaymentTransaction", "db"]
