@@ -1,6 +1,6 @@
 import re
 import time
-from datetime import datetime, timedelta, UTC
+from datetime import timezone, datetime, timedelta, UTC
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
@@ -247,18 +247,24 @@ def validate_voucher():
             current_app.logger.info(f"Voucher not found for code: {receipt_number}")
             return jsonify({"status": "error", "message": "Voucher not found"}), 404
 
+        # Handle used voucher
         if voucher.is_used:
-            if voucher.expiry_time and voucher.expiry_time > datetime.now(UTC):
-                current_app.logger.info(f"Reconnecting to active session for voucher: {receipt_number}")
-                return jsonify({"status": "success", "message": "Reconnected to active session"}), 200
+            if voucher.expiry_time:
+                expiry_time = voucher.expiry_time.astimezone(timezone.utc)  # Ensure UTC-aware datetime
+
+                if expiry_time > datetime.now(timezone.utc):
+                    current_app.logger.info(f"Reconnecting to active session for voucher: {receipt_number}")
+                    return jsonify({"status": "success", "message": "Reconnected to active session"}), 200
+
             current_app.logger.info(f"Voucher expired for code: {receipt_number}")
             return jsonify({"status": "error", "message": "Voucher expired"}), 400
 
-        # Update voucher
+        # Mark voucher as used and set expiry
         voucher.is_used = True
-        voucher.expiry_time = datetime.now(UTC) + timedelta(hours=1)
+        voucher.expiry_time = datetime.now(timezone.utc) + timedelta(hours=1)  # 1-hour validity
         db.session.commit()
 
+        # Successful response
         response_data = {
             "status": "success",
             "message": "Voucher validated successfully",

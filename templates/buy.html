@@ -48,8 +48,13 @@
                 <input type="hidden" id="voucherData" name="data_plan">
                 <input type="hidden" id="voucherDuration" name="duration">
                 <input type="hidden" id="userType" name="user_type" value="guest">
-                <button type="submit">Buy Voucher</button>
+                <button type="submit" id="buyVoucherButton">Buy Voucher</button>
             </form>
+
+            <div id="loading" style="display: none;">
+    <p>Hold Tight Man's Sorting it Out...</p>
+<img src="/static/loading.gif" alt="Loading"></div>
+
         </div>
 
         <hr>
@@ -59,7 +64,7 @@
         <form id="loginForm">
             <label for="receipt_number">Enter Voucher Code:</label>
             <input type="text" id="receipt_number" name="receipt_number" placeholder="Voucher Code" required>
-            <button type="submit" id="loginButton">Login</button>
+            <button type="submit" id="loginButton" disabled>Login</button>
         </form>
                 <p id="voucherMessage" style="color: red;"></p>
 
@@ -84,6 +89,10 @@
      */
     async function submitPhoneNumber(event) {
         event.preventDefault();
+        const buyButton = document.getElementById("buyVoucherButton");
+        const loadingIndicator = document.getElementById("loading");
+        buyButton.disabled = true;
+        loadingIndicator.style.display = "block";
 
         const phoneNumber = document.getElementById("phoneNumber").value.trim();
         const voucherAmount = document.getElementById("voucherAmount").value;
@@ -111,16 +120,23 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
-            }).then(res => res.json());
+            }).then(res => res.json()).catch(error => { throw new Error(error.message); });
 
             alert("Payment initiated! Enter your M-Pesa PIN now...");
-
+            alert("Payment initiated! Enter your M-Pesa PIN now...");
+            buyButton.disabled = false;
+            loadingIndicator.style.display = "none";
             // If checkout ID is received, poll for payment status
             if (result.checkout_request_id) {
                 await pollTransactionStatus(payload.phone_number, result.checkout_request_id);
             }
         } catch (error) {
+            buyButton.disabled = false;
+            loadingIndicator.style.display = "none";
+
             alert("Error: " + error.message);
+            loadingIndicator.style.display = "none";
+            buyButton.disabled = false;
         }
     }
 
@@ -130,7 +146,14 @@
     async function pollTransactionStatus(phoneNumber, requestId) {
         const interval = setInterval(async () => {
             try {
-                const response = await fetch("/mpesa/payment-status?phone=" + phoneNumber + "&request_id=" + requestId);
+                let response;
+                try {
+                    response = await fetch("/mpesa/payment-status?phone=" + phoneNumber + "&request_id=" + requestId);
+                } catch (error) {
+                    clearInterval(interval);
+                    console.error("Network error while polling payment status:", error);
+                    return;
+                }
                 const data = await response.json();
 
                 // Handle success and autofill voucher code
@@ -164,6 +187,10 @@
      */
     document.getElementById("loginForm").addEventListener("submit", async function(event) {
         event.preventDefault();
+        const loginButton = document.getElementById("loginButton");
+        const loadingIndicator = document.getElementById("loading");
+        loginButton.disabled = true;
+        loadingIndicator.style.display = "block";
         const voucherCode = document.getElementById("receipt_number").value.trim();
 
         if (!voucherCode) {
@@ -182,21 +209,22 @@
 
             if (result.success) {
                 alert("Login successful!");
+                loginButton.disabled = false;
+                loadingIndicator.style.display = "none";
                 window.location.href = "/success";
             } else {
                 alert("Error: " + (result.message || "Validation failed."));
+                loginButton.disabled = false;
+                loadingIndicator.style.display = "none";
             }
         } catch (error) {
             alert("An error occurred: " + error.message);
+            loginButton.disabled = false;
+            loadingIndicator.style.display = "none";
         }
     });
 </script>
 
-
-<div id="loading" style="display: none;">
-    <p>Processing your request, please wait...</p>
-    <link rel="icon" type="image/x-icon" href="/static/loading.gif"> alt="Loading">
-</div>
 
 </body>
 <footer>

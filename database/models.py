@@ -9,7 +9,7 @@ class Voucher(db.Model):
     is_used = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), default=db.func.now())
     price = db.Column(db.Float, nullable=False)
-    expiry_time = db.Column(db.DateTime, nullable=True)
+    expiry_time = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __repr__(self):
         return f"<Voucher {self.code}>"

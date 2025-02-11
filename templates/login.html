@@ -15,19 +15,22 @@
             <input type="text" id="receipt_number" name="receipt_number" placeholder="Voucher Code" required>
             <button type="submit" id="loginButton">Login</button>
         </form>
-        <p id="voucherMessage" style="color: red;"></p>
+        <p id="voucherMessage"></p>
         <p class="paragraph">Don't have a voucher? <a href="/buy" class="link">Buy one here</a></p>
     </div>
 
 
 <script>
-async function submitVoucherCode(event) {
+    document.getElementById("loginForm").addEventListener("submit", async function(event) {
         event.preventDefault();
+
         const voucherInput = document.getElementById("receipt_number");
+        const voucherMessage = document.getElementById("voucherMessage");
         const voucherCode = voucherInput.value.trim();
 
         if (!voucherCode) {
-            document.getElementById("voucherMessage").textContent = "Please enter a voucher code.";
+            voucherMessage.style.color = "red";
+            voucherMessage.textContent = "Please enter a voucher code.";
             voucherInput.focus();
             return;
         }
@@ -39,29 +42,29 @@ async function submitVoucherCode(event) {
                 body: JSON.stringify({ receipt_number: voucherCode })
             });
 
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.statusText}`);
-            }
-
             const result = await response.json();
 
-            if (result.success) {
-                document.getElementById("voucherMessage").textContent = "";
-                window.location.href = "/success";
+            if (response.ok && result.status === "success") {
+                voucherMessage.style.color = "green";
+                voucherMessage.textContent = "Voucher is valid! Redirecting...";
+
+                // Redirect to /success.html after 1.5s
+                setTimeout(() => {
+                    window.location.href = "/success.html";
+                }, 1500);
             } else {
-                document.getElementById("voucherMessage").textContent =
-                    result.message || "Voucher validation failed. Please try again.";
+                voucherMessage.style.color = "red";
+                voucherMessage.textContent = result.message || "Voucher validation failed. Please try again.";
                 voucherInput.focus();
             }
         } catch (error) {
-            document.getElementById("voucherMessage").textContent =
-                `An error occurred: ${error.message}`;
+            voucherMessage.style.color = "red"
+            voucherMessage.textContent = `Already Authorizing...: ${error.message}`;
             voucherInput.focus();
         }
-    }
+    });
+</script>
 
-    document.getElementById("loginForm").addEventListener("submit", (event) => submitVoucherCode(event));
-    </script>
 </body>
 <footer>
     <p><span>

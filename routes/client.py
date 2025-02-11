@@ -3,7 +3,6 @@ from database.models import Client
 from flask_sqlalchemy import SQLAlchemy
 from flask import current_app
 
-
 client_bp = Blueprint("client", __name__)
 db = SQLAlchemy()
 
@@ -67,4 +66,3 @@ def list_clients():
         # Handle unexpected errors
         current_app.logger.exception(f"Unexpected error: {str(e)}")
         return jsonify({"status": "error", "message": "Internal server error"}), 500
-
