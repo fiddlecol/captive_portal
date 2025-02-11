@@ -1,6 +1,6 @@
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import requests
 from flask import Blueprint, request, jsonify, current_app
 from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
@@ -43,6 +43,7 @@ def buy_voucher():
 
         current_app.logger.info(f"MPesa STK Push Request: {raw_data}")
 
+        # Generate password and timestamp for payload
         password, timestamp = get_password_and_timestamp()
         access_token = get_access_token()
         current_app.logger.info(f"Access Token: {access_token}")
@@ -62,28 +63,30 @@ def buy_voucher():
         }
         current_app.logger.info(f"STK Push Payload: {payload}")
 
-        # Send request with timeout
-        start_time = time.time()
+        # Send the request
         response = requests.post(STK_PUSH_URL, headers={"Authorization": f"Bearer {access_token}"}, json=payload,
                                  timeout=30)
+
+        # Track response time for logging
+        start_time = time.time()
         end_time = time.time()
 
         current_app.logger.info(f"STK Push completed in {end_time - start_time} seconds")
 
-        # Handle response
         try:
             json_response = response.json()
         except ValueError:
             current_app.logger.error(f"Invalid JSON response: {response.text}")
             return jsonify({"status": "error", "message": "Invalid response from M-Pesa"}), 500
 
+        # Handle successful M-Pesa response
         if response.status_code == 200 and json_response.get("ResponseCode") == "0":
             transaction = PaymentTransaction(
                 checkout_request_id=json_response.get("CheckoutRequestID"),
                 merchant_request_id=json_response.get("MerchantRequestID"),
                 phone_number=phone_number,
                 amount=float(amount),
-                status="PENDING",
+                status="PENDING",  # Set as PENDING initially; will update after callback
                 description=f"Voucher for {voucher_data} ({voucher_duration})"
             )
             db.session.add(transaction)
@@ -91,80 +94,133 @@ def buy_voucher():
             current_app.logger.info(f"Transaction saved: ID {transaction.id}")
             return jsonify({"status": "success", "stk_response": json_response}), 200
         else:
-            error_message = json_response.get("errorMessage", "Unknown error")
-            current_app.logger.error(f"STK Push failed: {error_message}")
-            return jsonify({"status": "error", "message": error_message}), 400
+            current_app.logger.error(f"STK Push failed with: {json_response.get('errorMessage', 'Unknown error')}")
+            return jsonify({"status": "error", "message": json_response.get('errorMessage', 'Unknown error')}), 400
 
     except requests.RequestException as req_ex:
         current_app.logger.error(f"RequestException during STK Push: {req_ex}")
         return jsonify({"status": "error", "message": "STK Push request failed"}), 500
     except Exception as e:
-        current_app.logger.exception("Unexpected error during buy-voucher")
+        current_app.logger.exception(f"Unexpected error during buy-voucher: {str(e)}")
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
 @mpesa_bp.route('/mpesa_callback', methods=['POST'])
 def mpesa_callback():
     """Handle callbacks from MPesa."""
-    callback_data = request.get_json()
-    current_app.logger.info(f"MPesa Callback Received: {callback_data}")
-
     try:
-        # Extract necessary fields
+        # Log raw incoming data for debugging purposes
+        raw_data = request.get_data(as_text=True)
+        current_app.logger.info(f"Raw MPesa Callback Data: {raw_data}")
+
+        # Ensure Content-Type is JSON
+        if not request.content_type or "application/json" not in request.content_type:
+            current_app.logger.error(f"Invalid Content-Type: {request.content_type}")
+            return jsonify({"ResultCode": 1, "ResultDesc": "Content-Type must be application/json"}), 400
+
+        # Ensure the body is not empty
+        if not request.data:
+            current_app.logger.error("Empty request body received.")
+            return jsonify({"ResultCode": 1, "ResultDesc": "Empty request body"}), 400
+
+        # Attempt to parse JSON from request
+        try:
+            callback_data = request.get_json()
+        except Exception as e:
+            current_app.logger.error(f"Failed to parse JSON: {str(e)}. Raw Data: {raw_data}")
+            return jsonify({"ResultCode": 1, "ResultDesc": "Invalid JSON format"}), 400
+
+        # Log the successfully parsed JSON payload
+        current_app.logger.info(f"Parsed MPesa Callback Data: {callback_data}")
+
+        # Extract and validate key data
         stk_callback = callback_data.get("Body", {}).get("stkCallback", {})
+        if not stk_callback:
+            current_app.logger.error("stkCallback data is missing in callback.")
+            return jsonify({"ResultCode": 1, "ResultDesc": "stkCallback missing"}), 400
+
         transaction_id = stk_callback.get("CheckoutRequestID")
         result_code = stk_callback.get("ResultCode")
         result_desc = stk_callback.get("ResultDesc")
 
         if not transaction_id:
-            current_app.logger.error("Transaction ID not found in callback data.")
+            current_app.logger.error(f"Transaction ID missing in callback: {callback_data}")
             return jsonify({"ResultCode": 1, "ResultDesc": "Transaction ID missing"}), 400
 
-        # Extract callback metadata
+        # Process Metadata
         metadata_items = stk_callback.get("CallbackMetadata", {}).get("Item", [])
-        metadata_dict = {item["Name"]: item["Value"] for item in metadata_items if "Name" in item and "Value" in item}
-
-        # Extract receipt number
+        metadata_dict = {item.get("Name"): item.get("Value") for item in metadata_items if "Name" in item}
         receipt_number = metadata_dict.get("MpesaReceiptNumber")
 
-        # Fetch transaction from DB
-        transaction = PaymentTransaction.query.filter_by(checkout_request_id=transaction_id).first()
+        # Fetch the transaction from the database
+        from sqlalchemy.exc import SQLAlchemyError
+        try:
+            transaction = PaymentTransaction.query.filter_by(checkout_request_id=transaction_id).first()
+        except SQLAlchemyError as db_error:
+            current_app.logger.error(f"Database query error: {str(db_error)}")
+            return jsonify({"ResultCode": 1, "ResultDesc": "Database query failed"}), 500
 
+        # Create new transaction if none exists
         if not transaction:
-            transaction = PaymentTransaction(
-                checkout_request_id=transaction_id,
-                status="PENDING",  # Default to pending
-                description="MPesa callback received",
-                receipt_number=receipt_number
-            )
-            db.session.add(transaction)
+            try:
+                transaction = PaymentTransaction(
+                    checkout_request_id=transaction_id,
+                    status="PENDING",
+                    description="MPesa callback received",
+                    receipt_number=receipt_number
+                )
+                db.session.add(transaction)
+            except SQLAlchemyError as db_error:
+                current_app.logger.error(f"Failed to create transaction: {str(db_error)}")
+                db.session.rollback()
+                return jsonify({"ResultCode": 1, "ResultDesc": "Transaction creation error"}), 500
 
-        # Handle different cases based on ResultCode
+        # Process the ResultCode
         if result_code == 0:
             transaction.status = "SUCCESS"
             transaction.receipt_number = receipt_number
-            current_app.logger.info(f"Transaction {transaction_id} successful with Receipt: {receipt_number}")
-        elif result_code == 2001:
+            current_app.logger.info(f"Transaction {transaction_id} successful with receipt number: {receipt_number}")
+
+            # Check if voucher exists or create a new one
+            existing_voucher = Voucher.query.filter_by(code=receipt_number).first()
+            if not existing_voucher:
+                try:
+                    voucher = Voucher(
+                        code=receipt_number,
+                        is_used=False,
+                        price=transaction.amount,
+                        expiry_time=None)
+                    db.session.add(voucher)
+                except Exception as e:
+                    current_app.logger.error(f"Failed to create voucher: {str(e)}")
+                    db.session.rollback()
+                    return jsonify({"ResultCode": 1, "ResultDesc": "Voucher creation error"}), 500
+            else:
+                current_app.logger.warning(f"Duplicate voucher detected: {receipt_number}")
+
+        elif result_code == 2001:  # Wrong PIN
             transaction.status = "FAILED"
             transaction.description = "Wrong PIN entered"
-            current_app.logger.warning(f"Transaction {transaction_id} failed: Wrong PIN entered.")
-        elif result_code == 1032:
+            current_app.logger.warning(f"Transaction {transaction_id} failed due to wrong PIN.")
+        elif result_code == 1032:  # Cancelled by user
             transaction.status = "FAILED"
             transaction.description = "Transaction cancelled by user"
-            current_app.logger.warning(f"Transaction {transaction_id} cancelled by user.")
-        else:
+            current_app.logger.warning(f"Transaction {transaction_id} was cancelled by user.")
+        else:  # Other failure cases
             transaction.status = "FAILED"
             transaction.description = result_desc
             current_app.logger.error(f"Transaction {transaction_id} failed: {result_desc}")
 
+        # Commit database changes
         db.session.commit()
 
     except Exception as e:
-        current_app.logger.exception(f"Error processing MPesa callback: {str(e)}")
+        current_app.logger.exception(f"Unhandled error processing MPesa callback: {str(e)}")
         db.session.rollback()
         return jsonify({"ResultCode": 1, "ResultDesc": "Internal server error"}), 500
 
     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"}), 200
+
 
 
 @mpesa_bp.route('/validate_voucher', methods=['POST'])
@@ -173,39 +229,49 @@ def validate_voucher():
     receipt_number = data.get("receipt_number")
 
     if not receipt_number:
+        current_app.logger.info("No receipt_number provided")
         return jsonify({"status": "error", "message": "Receipt number is required"}), 400
 
     try:
         # Transaction validation
+        current_app.logger.info(f"Validating transaction for receipt_number: {receipt_number}")
         transaction = PaymentTransaction.query.filter_by(receipt_number=receipt_number, status="SUCCESS").first()
         if not transaction:
+            current_app.logger.info(f"Transaction not found or unsuccessful for receipt_number: {receipt_number}")
             return jsonify({"status": "error", "message": "Invalid or unsuccessful transaction"}), 404
 
         # Voucher validation
+        current_app.logger.info(f"Validating voucher for code: {receipt_number}")
         voucher = Voucher.query.filter_by(code=receipt_number).first()
         if not voucher:
+            current_app.logger.info(f"Voucher not found for code: {receipt_number}")
             return jsonify({"status": "error", "message": "Voucher not found"}), 404
 
         if voucher.is_used:
-            if voucher.expiry_time and voucher.expiry_time > datetime.utcnow():
+            if voucher.expiry_time and voucher.expiry_time > datetime.now(UTC):
+                current_app.logger.info(f"Reconnecting to active session for voucher: {receipt_number}")
                 return jsonify({"status": "success", "message": "Reconnected to active session"}), 200
+            current_app.logger.info(f"Voucher expired for code: {receipt_number}")
             return jsonify({"status": "error", "message": "Voucher expired"}), 400
 
         # Update voucher
         voucher.is_used = True
-        voucher.expiry_time = datetime.utcnow() + timedelta(hours=1)
+        voucher.expiry_time = datetime.now(UTC) + timedelta(hours=1)
         db.session.commit()
 
-        return jsonify({
+        response_data = {
             "status": "success",
             "message": "Voucher validated successfully",
             "expiry_time": voucher.expiry_time.isoformat()
-        }), 200
+        }
+        current_app.logger.info(f"Sending success response: {response_data}")
+        return jsonify(response_data), 200
 
     except Exception as e:
         current_app.logger.exception(f"Error validating voucher: {str(e)}")
         db.session.rollback()
         return jsonify({"status": "error", "message": "Internal server error"}), 500
+
 
 
 @mpesa_bp.route('/payment-status', methods=['GET'])
