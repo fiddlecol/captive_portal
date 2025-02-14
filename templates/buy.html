@@ -64,9 +64,9 @@
         <form id="loginForm">
             <label for="receipt_number">Enter Voucher Code:</label>
             <input type="text" id="receipt_number" name="receipt_number" placeholder="Voucher Code" required>
-            <button type="submit" id="loginButton" disabled>Login</button>
+            <button type="submit" id="loginButton">Login</button>
         </form>
-                <p id="voucherMessage" style="color: red;"></p>
+                <p id="voucherMessage"></p>
 
     </div>
 
@@ -140,10 +140,55 @@
         }
     }
 
+
+    document.getElementById("loginForm").addEventListener("submit", async function(event) {
+        event.preventDefault();
+
+        const voucherInput = document.getElementById("receipt_number");
+        const voucherMessage = document.getElementById("voucherMessage");
+        const voucherCode = voucherInput.value.trim();
+
+        if (!voucherCode) {
+            voucherMessage.style.color = "red";
+            voucherMessage.textContent = "Please enter a voucher code.";
+            voucherInput.focus();
+            return;
+        }
+
+        try {
+            const response = await fetch("/mpesa/validate_voucher", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ receipt_number: voucherCode })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.status === "success") {
+                voucherMessage.style.color = "green";
+                voucherMessage.textContent = "Voucher is valid! Redirecting...";
+
+                // Redirect to /success.html after 1.5s
+                setTimeout(() => {
+window.location.href = `${window.location.origin}/success`;
+                }, 1500);
+            } else {
+                voucherMessage.style.color = "red";
+                voucherMessage.textContent = result.message || "Voucher validation failed. Please try again.";
+                voucherInput.focus();
+            }
+        } catch (error) {
+            voucherMessage.style.color = "red"
+            voucherMessage.textContent = `Already Authorizing...: ${error.message}`;
+            voucherInput.focus();
+        }
+
+
+
     /**
      * Poll transaction status from the server
      */
-    async function pollTransactionStatus(phoneNumber, requestId) {
+     async function pollTransactionStatus(phoneNumber, requestId) {
         const interval = setInterval(async () => {
             try {
                 let response;
@@ -182,47 +227,8 @@
         }, 5000); // Poll every 5 seconds
     }
 
-    /**
-     * Handle login form submission
-     */
-    document.getElementById("loginForm").addEventListener("submit", async function(event) {
-        event.preventDefault();
-        const loginButton = document.getElementById("loginButton");
-        const loadingIndicator = document.getElementById("loading");
-        loginButton.disabled = true;
-        loadingIndicator.style.display = "block";
-        const voucherCode = document.getElementById("receipt_number").value.trim();
-
-        if (!voucherCode) {
-            alert("Please enter a voucher code.");
-            return;
-        }
-
-        try {
-            const response = await fetch("/mpesa/validate_voucher", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ receipt_number: voucherCode })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                alert("Login successful!");
-                loginButton.disabled = false;
-                loadingIndicator.style.display = "none";
-                window.location.href = "/success";
-            } else {
-                alert("Error: " + (result.message || "Validation failed."));
-                loginButton.disabled = false;
-                loadingIndicator.style.display = "none";
-            }
-        } catch (error) {
-            alert("An error occurred: " + error.message);
-            loginButton.disabled = false;
-            loadingIndicator.style.display = "none";
-        }
     });
+
 </script>
 
 

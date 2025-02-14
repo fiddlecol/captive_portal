@@ -3,16 +3,27 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Success</title>
-         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-       <link rel="icon" type="image/x-icon" href="/static/wifi.png">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='wifi.png') }}">
 </head>
 <body>
     <h1>Voucher Purchased Successfully!</h1>
-    <p>Your voucher code is your mpesa reference. Use it to login back to session.</p>
+    <div>
+    <p>Your voucher code is your M-Pesa reference. Use it to login back to your session incase of logout.</p>
+
+    <!-- WhatsApp Support Link -->
+    <p>Need help? <a href="https://wa.me/254746919779" target="_blank">Chat with us on WhatsApp</a></p>
+
+    <!-- WhatsApp Share Link -->
+    <p>Share with friends:
+        <a href="https://wa.me/?text=I%20just%20purchased%20a%20Wi-Fi%20voucher%20successfully!%20Try%20it%20too!%20http://yourwebsite.com"
+           target="_blank">
+           Share on WhatsApp
+        </a>
+    </p>
+        </div>
 </body>
 <footer>
-    <p><span>
-        © 2025 Fid_Dawg,&nbsp;Inc.
-      </span></p>
+    <p><span>© 2025 Fid_Dawg, Inc.</span></p>
 </footer>
 </html>
