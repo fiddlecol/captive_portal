@@ -5,24 +5,150 @@
     <title>Success</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='wifi.png') }}">
-</h
-    <div class="container">
-    <h1>Voucher Purchased Successfully!</h1>
-           <p>Your voucher code is your M-Pesa reference. Use it to login back to your session incase of logout.</p>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .wrapper {
+            display: flex;
+            width: 90%;
+            max-width: 1200px;
+            gap: 20px;
+        }
+        .container, .ads-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            width: 50%; /* Each section takes up 50% */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .ads {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+        .ads img {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 22px;
+            color: #333;
+            text-align: center;
+        }
+        p {
+            font-size: 16px;
+            color: #555;
+            text-align: center;
+        }
+        .button {
+            display: block;
+            background-color: #28a745; /* Green color */
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: 0.3s;
+            text-align: center;
+            margin: 10px 0; /* Added space between buttons */
+            width: 100%; /* Makes buttons full width */
+        }
+        .button:hover {
+            background-color: #218838;
+        }
+        .manicure {
+            background-color: #d63384; /* Dark pink */
+        }
+        .manicure:hover {
+            background-color: #c2186b;
+        }
+        footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
 
-    <!-- WhatsApp Support Link -->
-<p>Need help? <a href="https://wa.me/254746919779" target="_blank">Chat with us on WhatsApp</a></p>
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+            .container, .ads-container {
+                width: 100%;
+                max-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <!-- Left Section (50% Width) -->
+        <div class="container">
+            <h1>Voucher Purchased Successfully!</h1>
+            <p>Your voucher code is your M-Pesa reference. Use it to log in again if you get disconnected.</p>
 
-    <!-- WhatsApp Share Link -->
-    
-        <a href="https://wa.me/?text=I%20just%20purchased%20a%20Wi-Fi%20voucher%20successfully!%20Try%20it%20too!%20http://yourwebsite.com"
-           target="_blank">
-           Share on WhatsApp
-        </a>
-    </p>
+            <a href="https://chat.whatsapp.com/Fq8XujBmQbzJFKazIPA6Iq" target="_blank" class="button">⚡upport At HQ🛰️</a>
+            <a href="https://whatsapp.com/channel/0029VaoQKgH2Jl8IveCvC93I" target="_blank" class="button">
+                Driphub Fid_dawg C🔥llection 
+            </a>
+            <a href="smb://your-samba-server/movies" target="_blank" class="button">
+                Catch a Movie for Free
+            </a>
+            <a href="https://chat.whatsapp.com/LK7A5gihwie0vImGn43aI4" target="_blank" class="button manicure">
+                June's Manicure & Pedicure💅
+            </a>
         </div>
+
+        <!-- Right Advertisement Section (50% Width) -->
+        <div class="ads-container">
+            <div class="ads" id="adsContainer"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 Fid_Dawg, Inc.</p>
+    </footer>
+
+    <script>
+        async function loadAds() {
+            try {
+                const response = await fetch("/get_ads"); // API to fetch ad images
+                const images = await response.json();
+
+                const adsContainer = document.getElementById("adsContainer");
+                adsContainer.innerHTML = "";
+
+                images.forEach(img => {
+                    const imgElement = document.createElement("img");
+                    imgElement.src = `/static/ads/${img}`;
+                    imgElement.alt = "Advertisement";
+                    adsContainer.appendChild(imgElement);
+                });
+            } catch (error) {
+                console.error("Error loading ads:", error);
+            }
+        }
+
+        loadAds(); // Call function on page load
+    </script>
 </body>
-<footer>
-    <p><span>© 2025 Fid_Dawg, Inc.</span></p>
-</footer>
 </html>

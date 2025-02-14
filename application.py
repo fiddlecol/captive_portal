@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from database.models import db
 from routes import voucher_bp, client_bp
 from routes.mpesa import mpesa_bp
@@ -56,6 +56,12 @@ def list_routes():
     routes = [str(rule) for rule in app.url_map.iter_rules()]
     return {"routes": routes}
 
+
+@app.route("/get_ads")
+def get_ads():
+    ads_folder = "static/ads/"
+    images = [f for f in os.listdir(ads_folder) if f.endswith((".jpg", ".png", ".jpeg", ".gif"))]
+    return jsonify(images)
 
 
 if __name__ == "__main__":
