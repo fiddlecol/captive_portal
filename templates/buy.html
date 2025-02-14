@@ -140,94 +140,101 @@
         }
     }
 
-
     document.getElementById("loginForm").addEventListener("submit", async function(event) {
-        event.preventDefault();
+    event.preventDefault();
 
-        const voucherInput = document.getElementById("receipt_number");
-        const voucherMessage = document.getElementById("voucherMessage");
-        const voucherCode = voucherInput.value.trim();
+    const voucherInput = document.getElementById("receipt_number");
+    const voucherMessage = document.getElementById("voucherMessage");
+    const voucherCode = voucherInput.value.trim();
 
-        if (!voucherCode) {
+    if (!voucherCode) {
+        voucherMessage.style.color = "red";
+        voucherMessage.textContent = "Please enter a voucher code.";
+        voucherInput.focus();
+        return;
+    }
+
+    try {
+        const response = await fetch("/mpesa/validate_voucher", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ receipt_number: voucherCode })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.status === "success") {
+            voucherMessage.style.color = "green";
+            voucherMessage.textContent = "Voucher is valid! Redirecting...";
+
+            // Redirect to /success.html after 1.5s
+            setTimeout(() => {
+                window.location.href = `${window.location.origin}/success`;
+            }, 1500);
+        } else {
             voucherMessage.style.color = "red";
-            voucherMessage.textContent = "Please enter a voucher code.";
+            voucherMessage.textContent = result.message || "Voucher validation failed. Please try again.";
             voucherInput.focus();
-            return;
         }
+    } catch (error) {
+        voucherMessage.style.color = "red";
+        voucherMessage.textContent = `Already Authorizing...: ${error.message}`;
+        voucherInput.focus();
+    }
+}); // 🔥 **Fixed: Closing bracket added here** ✅
 
+/**
+ * Poll transaction status from the server
+ */
+async function pollTransactionStatus(phoneNumber, requestId) {
+    const interval = setInterval(async () => {
         try {
-            const response = await fetch("/mpesa/validate_voucher", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ receipt_number: voucherCode })
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.status === "success") {
-                voucherMessage.style.color = "green";
-                voucherMessage.textContent = "Voucher is valid! Redirecting...";
-
-                // Redirect to /success.html after 1.5s
-                setTimeout(() => {
-window.location.href = `${window.location.origin}/success`;
-                }, 1500);
-            } else {
-                voucherMessage.style.color = "red";
-                voucherMessage.textContent = result.message || "Voucher validation failed. Please try again.";
-                voucherInput.focus();
-            }
-        } catch (error) {
-            voucherMessage.style.color = "red"
-            voucherMessage.textContent = `Already Authorizing...: ${error.message}`;
-            voucherInput.focus();
-        }
-
-
-
-    /**
-     * Poll transaction status from the server
-     */
-     async function pollTransactionStatus(phoneNumber, requestId) {
-        const interval = setInterval(async () => {
+            let response;
             try {
-                let response;
-                try {
-                    response = await fetch("/mpesa/payment-status?phone=" + phoneNumber + "&request_id=" + requestId);
-                } catch (error) {
-                    clearInterval(interval);
-                    console.error("Network error while polling payment status:", error);
-                    return;
-                }
-                const data = await response.json();
+                response = await fetch(`/mpesa/payment-status?phone=${phoneNumber}&request_id=${requestId}`);
+            } catch (networkError) {
+                console.error("Network error while polling payment status:", networkError);
+                clearInterval(interval);
+                return;
+            }
 
-                // Handle success and autofill voucher code
-                if (data.status === "SUCCESS") {
+            if (!response.ok) {
+                console.error(`HTTP error: ${response.status}`);
+                clearInterval(interval);
+                return;
+            }
+
+            const data = await response.json();
+
+            if (data.status === "success") {
+                if (data.transaction_status === "successful") {
                     clearInterval(interval);
 
                     // Autofill voucher code in the login form
-                    if (data.receipt_number) {
-                        document.getElementById("receipt_number").value = data.receipt_number;
+                    const receiptInput = document.getElementById("receipt_number");
+                    if (receiptInput && data.receipt_number) {
+                        receiptInput.value = data.receipt_number;
+                        receiptInput.focus();
 
-                        // Optionally focus on the voucher code input for quick login
-                        document.getElementById("receipt_number").focus();
-                        alert("Payment successful! Your voucher code has been filled into the login form.");
+                        alert("Payment successful! Your voucher code has been filled in. Logging in...");
+
+                        // Automatically submit the login form
+                        const loginForm = document.getElementById("loginForm");
+                        if (loginForm) {
+                            loginForm.submit();
+                        }
                     }
-
-                    // Redirect to success page (optional)
-                    // window.location.href = "/success";
-                } else if (data.status === "FAILED") {
+                } else if (data.transaction_status === "failed") {
                     clearInterval(interval);
-                    alert("Payment Failed: " + data.message);
+                    alert("Payment Failed: " + (data.message || "Unknown error"));
                 }
-            } catch (error) {
-                console.error("Error checking payment status:", error);
-                clearInterval(interval);
             }
-        }, 5000); // Poll every 5 seconds
-    }
-
-    });
+        } catch (error) {
+            console.error("Error checking payment status:", error);
+            clearInterval(interval);
+        }
+    }, 5000); // Poll every 5 seconds
+}
 
 </script>
 

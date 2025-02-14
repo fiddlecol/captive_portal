@@ -285,33 +285,40 @@ def validate_voucher():
 
 @mpesa_bp.route('/payment-status', methods=['GET'])
 def payment_status():
-    phone = request.args.get('phone')  # Get phone query parameter
-    request_id = request.args.get('request_id')  # Get request_id query parameter
+    phone = request.args.get('phone')
+    request_id = request.args.get('request_id')
 
     if not phone or not request_id:
         current_app.logger.error("Missing required query parameters: phone or request_id.")
         return jsonify({"status": "error", "message": "Missing required query parameters: phone or request_id"}), 400
 
     try:
-        # Query the PaymentTransaction table for status
-        transaction = PaymentTransaction.query.filter_by(phone_number=phone, checkout_request_id=request_id).first()
+        # Query the database for the transaction
+        transaction = PaymentTransaction.query.filter_by(
+            phone_number=phone, 
+            checkout_request_id=request_id
+        ).first()
 
         if not transaction:
-            current_app.logger.error(f"Transaction not found for Phone: {phone}, Request ID: {request_id}")
-            return jsonify({"status": "error", "message": "Transaction not found."}), 404
+            current_app.logger.warning(f"Transaction not found. Phone: {phone}, Request ID: {request_id}")
+            return jsonify({"status": "error", "message": "Transaction not found"}), 404
 
-        # Log and return transaction details
-        current_app.logger.info(f"Found transaction: {transaction.checkout_request_id}, Status: {transaction.status}")
-        return jsonify({
+        # Log the transaction status
+        current_app.logger.info(f"Transaction found: {transaction.checkout_request_id}, Status: {transaction.status}")
+
+        response_data = {
             "status": "success",
             "transaction_status": transaction.status,
             "amount": transaction.amount,
             "description": transaction.description,
-            "receipt_number": transaction.receipt_number,
+            "receipt_number": transaction.receipt_number,  # Ensure this field is returned
             "timestamp": transaction.updated_at.isoformat() if transaction.updated_at else None
-        }), 200
+        }
+
+        # Return JSON response
+        return jsonify(response_data), 200
 
     except Exception as e:
-        current_app.logger.exception(f"Error fetching payment status: {str(e)}")
+        current_app.logger.exception("Error fetching payment status")
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
