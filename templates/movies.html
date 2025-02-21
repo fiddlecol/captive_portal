@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Movies</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Watch Movies 🎬</h1>
+    
+    <div class="movies-container">
+        {% for movie in movies %}
+            <div class="movie-item">
+                <h3>{{ movie }}</h3>
+                <video controls width="100%">
+                    <source src="{{ url_for('get_movie', filename=movie) }}" type="video/mp4">
+                    Your browser does not support this video format.
+                </video>
+            </div>
+        {% endfor %}
+    </div>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            text-align: center;
+        }
+        .movies-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            padding: 20px;
+        }
+        .movie-item {
+            width: 300px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        video {
+            width: 100%;
+            border-radius: 8px;
+        }
+    </style>
+
+</body>
+</html>

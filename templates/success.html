@@ -49,7 +49,7 @@
         }
         h1 {
             font-size: 22px;
-            color: #0daf30;
+            color: #070707;
             text-align: center;
         }
         p {
@@ -114,9 +114,10 @@
             <a href="https://whatsapp.com/channel/0029VaoQKgH2Jl8IveCvC93I" target="_blank" class="button">
                 Driphub Fid_dawg C🔥llection 
             </a>
-            <a href="smb://192.168.1.81/Movies/" target="_blank" class="button">
-                Catch a Movie for Free
+            <a href="{{ url_for('list_movies') }}" class="button">
+                Catch a Movie🎬 for Free🍿
             </a>
+            
             <a href="https://chat.whatsapp.com/LK7A5gihwie0vImGn43aI4" target="_blank" class="button manicure">
                 June's Manicure & Pedicure💅
             </a>
@@ -143,6 +144,7 @@
                     imgElement.src = `/static/ads/${img}`;
                     imgElement.alt = "Advertisement";
                     adsContainer.appendChild(imgElement);
+                
                 });
             } catch (error) {
                 console.error("Error loading ads:", error);
