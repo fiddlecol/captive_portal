@@ -5,7 +5,7 @@ import requests
 from flask import Blueprint, request, jsonify, current_app
 from config import Config, STK_PUSH_URL
 from database.models import PaymentTransaction, db, Voucher
-from utilities import get_access_token, get_password_and_timestamp, SHORTCODE, CALLBACK_URL
+from utilities import get_access_token, get_password_and_timestamp, SHORTCODE, TILL_NUMBER, CALLBACK_URL
 from zoneinfo import ZoneInfo
 
 
@@ -64,7 +64,7 @@ def buy_voucher():
             "TransactionType": "CustomerBuyGoodsOnline",
             "Amount": amount,
             "PartyA": phone_number,
-            "PartyB": SHORTCODE,
+            "PartyB": TILL_NUMBER,
             "PhoneNumber": phone_number,
             "CallBackURL": CALLBACK_URL,
             "AccountReference": f"Voucher_{voucher_data}",

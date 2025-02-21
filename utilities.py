@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 # Load M-Pesa environment variables
 CONSUMER_KEY = os.getenv("CONSUMER_KEY", "CONSUMER_KEY")  
 CONSUMER_SECRET = os.getenv("CONSUMER_SECRET", "CONSUMER_SECRET")
-SHORTCODE = os.getenv("SHORTCODE", "SHORTCODE")  
+SHORTCODE = os.getenv("SHORTCODE", "SHORTCODE") 
+TILL_NUMBER = os.getenv("TILL_NUMBER", "TILL_NUMBER")
 PASSKEY = os.getenv("PASSKEY", "PASSKEY")
-OAUTH_URL = os.getenv("OAUTH_URL", "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials")
+OAUTH_URL = os.getenv("OAUTH_URL", "OAUTH_URL")
 CALLBACK_URL = os.getenv("CALLBACK_URL", "CALLBACK_URL")
 
 if not SHORTCODE or not PASSKEY or not OAUTH_URL or not CALLBACK_URL or not CONSUMER_KEY or not CONSUMER_SECRET:
