@@ -21,4 +21,4 @@ class Config:
         "sqlite:///instance/application.db"  # Default path for SQLite
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    CONSUMER_KEY = os.getenv("CONSUMER_KEY", "your_default_key")
+    CONSUMER_KEY = os.getenv("CONSUMER_KEY", "CONSUMER_KEY")

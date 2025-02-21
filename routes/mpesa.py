@@ -3,12 +3,13 @@ import time
 from datetime import timezone, datetime, timedelta
 import requests
 from flask import Blueprint, request, jsonify, current_app
-from config import SHORTCODE, CALLBACK_URL, STK_PUSH_URL
+from config import Config, STK_PUSH_URL
 from database.models import PaymentTransaction, db, Voucher
-from utilities import get_access_token, get_password_and_timestamp
+from utilities import get_access_token, get_password_and_timestamp, SHORTCODE, CALLBACK_URL
 from zoneinfo import ZoneInfo
 
-EAT = ZoneInfo("Africa/Nairobi")
+
+EAT = ZoneInfo("Africa/Nairobi") 
 
 mpesa_bp = Blueprint("mpesa", __name__)
 
@@ -49,13 +50,18 @@ def buy_voucher():
         # Generate password and timestamp for payload
         password, timestamp = get_password_and_timestamp()
         access_token = get_access_token()
-        current_app.logger.info(f"Access Token: {access_token}")
+        
+        if not access_token:
+            current_app.logger.error("Failed to retrieve access token.")
+            return jsonify({"status": "error", "message": "Authentication error"}), 401
+        
+        current_app.logger.info(f"Retrieved Access Token: {access_token}")
 
         payload = {
             "BusinessShortCode": SHORTCODE,
             "Password": password,
             "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
+            "TransactionType": "CustomerBuyGoodsOnline",
             "Amount": amount,
             "PartyA": phone_number,
             "PartyB": SHORTCODE,
@@ -64,16 +70,20 @@ def buy_voucher():
             "AccountReference": f"Voucher_{voucher_data}",
             "TransactionDesc": f"Buying {voucher_data} for {voucher_duration}",
         }
+        
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        current_app.logger.info(f"STK Push Headers: {headers}")
         current_app.logger.info(f"STK Push Payload: {payload}")
-
-        # Send the request
-        response = requests.post(STK_PUSH_URL, headers={"Authorization": f"Bearer {access_token}"}, json=payload,
-                                 timeout=30)
 
         # Track response time for logging
         start_time = time.time()
+        response = requests.post(STK_PUSH_URL, headers=headers, json=payload, timeout=10)
         end_time = time.time()
-
+        
         current_app.logger.info(f"STK Push completed in {end_time - start_time} seconds")
 
         try:
@@ -311,7 +321,7 @@ def payment_status():
             "transaction_status": transaction.status,
             "amount": transaction.amount,
             "description": transaction.description,
-            "receipt_number": transaction.receipt_number,  # Ensure this field is returned
+            "receipt_number": transaction.receipt_number or "N/A",
             "timestamp": transaction.updated_at.isoformat() if transaction.updated_at else None
         }
 
@@ -321,4 +331,3 @@ def payment_status():
     except Exception as e:
         current_app.logger.exception("Error fetching payment status")
         return jsonify({"status": "error", "message": "Internal server error"}), 500
-
